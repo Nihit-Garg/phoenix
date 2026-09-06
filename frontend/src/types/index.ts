@@ -9,7 +9,7 @@ export interface ChatMessage {
   timestamp: string;
   hops?: number;
   priority?: 'NORMAL' | 'HIGH' | 'EMERGENCY';
-  status?: 'sending' | 'sent' | 'delivered';
+  status?: 'sending' | 'sent' | 'delivered' | 'queued';
 }
 
 export interface Conversation {

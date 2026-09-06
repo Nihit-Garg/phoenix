@@ -27,10 +27,9 @@ graph TB
     end
 
     subgraph "Dev 4 — Frontend UI"
-        PAGES["apps/web/src/app/"]
-        COMPS["apps/web/src/components/"]
-        STYLES["apps/web/src/styles/"]
-        SHARED_UI["packages/shared/types/ui.ts"]
+        SCREENS["frontend/src/screens/"]
+        COMPS["frontend/src/components/"]
+        TYPES_UI["frontend/src/types/index.ts"]
     end
 
     subgraph "Dev 5 — Protocol Engine"
@@ -233,45 +232,39 @@ scfQueueRepository: {
 
 ## Developer 4 — Frontend UI
 
+> **Platform change:** React Native / Expo instead of Next.js. All functionality equivalent.
+
 ### Primary Responsibility
-Build the entire React component tree, pages, and visual experience.
+Build the entire React Native screen tree and component library. Wire screens to Zustand stores and hooks.
 
 ### Files Owned
 
 | File | Description |
 |---|---|
-| `apps/web/src/app/layout.tsx` | Root layout |
-| `apps/web/src/app/page.tsx` | Entry page |
-| `apps/web/src/app/topology/page.tsx` | Topology page |
-| `apps/web/src/app/messenger/page.tsx` | Messenger page |
-| `apps/web/src/app/settings/page.tsx` | Settings page |
-| `apps/web/src/components/topology/TopologyCanvas.tsx` | React Flow canvas |
-| `apps/web/src/components/topology/MeshNode.tsx` | Custom node |
-| `apps/web/src/components/topology/MeshEdge.tsx` | Custom edge |
-| `apps/web/src/components/topology/NodeInfoPanel.tsx` | Node detail panel |
-| `apps/web/src/components/topology/PacketTraceLog.tsx` | Packet trace |
-| `apps/web/src/components/messenger/NodeSelector.tsx` | Peer picker |
-| `apps/web/src/components/messenger/MessageComposer.tsx` | Message input |
-| `apps/web/src/components/messenger/MessageThread.tsx` | Message history |
-| `apps/web/src/components/emergency/EmergencyBanner.tsx` | Emergency alert |
-| `apps/web/src/components/emergency/EmergencyButton.tsx` | Emergency trigger |
-| `apps/web/src/components/shared/NetworkStatusBar.tsx` | Status bar |
-| `apps/web/src/components/shared/SettingsModal.tsx` | Settings overlay |
-| `apps/web/src/components/shared/QueueDepthBadge.tsx` | Queue indicator |
-| `apps/web/src/styles/globals.css` | Global styles |
-| `apps/web/tailwind.config.ts` | Tailwind config |
-| `packages/shared/src/types/ui.ts` | UI data model types |
+| `frontend/App.tsx` | Root entry — mounts `useMeshEngine()`, screen router |
+| `frontend/src/screens/HomeScreen.tsx` | SOS screen; live peer count; real emergency broadcast |
+| `frontend/src/screens/ChatScreen.tsx` | Per-peer message thread; uses `usePeerMessages` hook |
+| `frontend/src/screens/MessagesListScreen.tsx` | Live peer list; last messages from store |
+| `frontend/src/screens/ProfileScreen.tsx` | Node identity and settings |
+| `frontend/src/components/SosButton.tsx` | Animated ripple SOS button |
+| `frontend/src/components/AddressCard.tsx` | Address display card |
+| `frontend/src/components/ChatBubble.tsx` | Message bubble with hop trace info |
+| `frontend/src/components/MessageComposer.tsx` | Text input + priority picker + send |
+| `frontend/src/components/BottomNav.tsx` | Tab bar navigation |
+| `frontend/src/types/index.ts` | UI types (ChatMessage, ScreenType, Conversation) |
 
 ### Interfaces Exposed
 
-- Components are consumed by pages only (no external interface).
-- Dev 4 consumes hooks from Dev 3 and `sendPacket()` from Dev 5 via `useMeshEngine()`.
+- Screens are self-contained; no external interface.
+- Dev 4 consumes:
+  - `useMeshStore()` — peer list, connection status, local identity
+  - `usePeerMessages(peerId)` — message thread + send action
+  - `useEmergency()` — emergency state + `broadcastEmergency()`
 
 ### Dependencies
 
 - Dev 3 stores + hooks (for data)
-- Dev 5 MeshEngine `sendPacket()` method (for sending)
-- `packages/shared/types/ui.ts` (self-owned, seeded at Phase 1)
+- Dev 5 `MeshEngine` (accessed only via hooks, never directly)
 
 ### Integration Checkpoints
 

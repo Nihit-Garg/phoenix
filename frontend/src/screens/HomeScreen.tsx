@@ -8,12 +8,13 @@ import {
   Modal,
   TouchableOpacity,
   Platform,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { SosButton } from '../components/SosButton';
 import { AddressCard } from '../components/AddressCard';
+import { useMeshStore } from '../stores/useMeshStore';
+import { useEmergency } from '../hooks/useEmergency';
 
 interface HomeScreenProps {
   onAddressPress?: () => void;
@@ -27,12 +28,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
+  const { peers, connectionStatus, displayName } = useMeshStore();
+  const { broadcastEmergency } = useEmergency();
+
+  const peerCount = peers.size;
+  const onlineCount = Array.from(peers.values()).filter((p) => p.status === 'alive').length;
+
   const handleSosPress = () => {
     setIsEmergencyActive(true);
     setModalVisible(true);
-    if (onEmergencyBroadcast) {
-      onEmergencyBroadcast();
-    }
+    // Fire real emergency broadcast through the mesh
+    broadcastEmergency('SOS — Emergency broadcast from this node');
+    if (onEmergencyBroadcast) onEmergencyBroadcast();
   };
 
   const cancelEmergency = () => {
@@ -40,22 +47,56 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setModalVisible(false);
   };
 
+  const connStatusLabel = () => {
+    if (connectionStatus === 'connecting') return 'Connecting to mesh...';
+    if (connectionStatus === 'disconnected') return 'Mesh offline';
+    if (peerCount === 0) return 'Mesh online — no peers in range';
+    return `Mesh online — ${onlineCount} peer${onlineCount !== 1 ? 's' : ''} in range`;
+  };
+
+  const connStatusColor = () => {
+    if (connectionStatus !== 'connected') return '#F59E0B';
+    if (peerCount === 0) return '#6B7280';
+    return COLORS.onlineGreen;
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-      
+
       <View style={styles.container}>
-        {/* Top Header / Greeting */}
+        {/* Top Header */}
         <View style={styles.header}>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.nameText}>Anshul Gupta</Text>
+          <View>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.nameText}>{displayName || 'Loading...'}</Text>
+          </View>
+          {/* Live connection badge */}
+          <View style={[styles.connBadge, { borderColor: connStatusColor() }]}>
+            <View style={[styles.connDot, { backgroundColor: connStatusColor() }]} />
+            <Text style={[styles.connLabel, { color: connStatusColor() }]}>
+              {connectionStatus === 'connected' ? `${peerCount} peers` : connectionStatus}
+            </Text>
+          </View>
+        </View>
+
+        {/* Status strip */}
+        <View style={styles.statusStrip}>
+          <Ionicons
+            name={connectionStatus === 'connected' ? 'radio' : 'cloud-offline-outline'}
+            size={13}
+            color={connStatusColor()}
+          />
+          <Text style={[styles.statusStripText, { color: connStatusColor() }]}>
+            {connStatusLabel()}
+          </Text>
         </View>
 
         {/* Emergency Prompt Section */}
         <View style={styles.emergencyPromptSection}>
           <Text style={styles.headingText}>Are you in an emergency?</Text>
           <Text style={styles.subheadingText}>
-            Press the button below help will reach you soon.
+            Press the button below — your SOS will be relayed across all reachable mesh nodes.
           </Text>
         </View>
 
@@ -90,7 +131,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </View>
             <Text style={styles.modalTitle}>EMERGENCY SOS ACTIVE</Text>
             <Text style={styles.modalDesc}>
-              Broadcasting your emergency location (151 ABC BANGALORE) across all reachable mesh nodes.
+              Broadcasting your emergency across all reachable mesh nodes via store-carry-forward routing.
             </Text>
 
             <View style={styles.modalMetrics}>
@@ -100,7 +141,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </View>
               <View style={styles.metricItem}>
                 <Ionicons name="people" size={18} color={COLORS.primaryRed} />
-                <Text style={styles.metricLabel}>Nearby Peers: 3 Reached</Text>
+                <Text style={styles.metricLabel}>
+                  {peerCount > 0
+                    ? `${peerCount} Peer${peerCount !== 1 ? 's' : ''} Reached`
+                    : 'SCF queuing — no peers yet'}
+                </Text>
               </View>
             </View>
 
@@ -119,10 +164,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -133,24 +175,37 @@ const styles = StyleSheet.create({
   },
   header: {
     marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  welcomeText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    fontWeight: '400',
-    letterSpacing: 0.2,
-  },
-  nameText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginTop: 2,
-    letterSpacing: 0.2,
-  },
-  emergencyPromptSection: {
+  welcomeText: { fontSize: 16, color: COLORS.textSecondary, fontWeight: '400', letterSpacing: 0.2 },
+  nameText: { fontSize: 22, fontWeight: '800', color: COLORS.textPrimary, marginTop: 2, letterSpacing: 0.2 },
+  connBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 18,
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 4,
   },
+  connDot: { width: 7, height: 7, borderRadius: 3.5 },
+  connLabel: { fontSize: 11, fontWeight: '700' },
+  statusStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+  },
+  statusStripText: { fontSize: 12, fontWeight: '600' },
+  emergencyPromptSection: { alignItems: 'center', marginTop: 8 },
   headingText: {
     fontSize: 26,
     fontWeight: '800',
@@ -164,18 +219,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 20,
-    maxWidth: 240,
+    maxWidth: 260,
   },
-  sosContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 10,
-  },
-  addressWrapper: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
+  sosContainer: { alignItems: 'center', justifyContent: 'center', marginVertical: 10 },
+  addressWrapper: { width: '100%', alignItems: 'center', marginBottom: 4 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
@@ -227,16 +274,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     gap: 8,
   },
-  metricItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  metricLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#991B1B',
-  },
+  metricItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  metricLabel: { fontSize: 13, fontWeight: '600', color: '#991B1B' },
   cancelButton: {
     backgroundColor: '#111827',
     borderRadius: 12,
@@ -245,9 +284,5 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  cancelButtonText: {
-    color: COLORS.textWhite,
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  cancelButtonText: { color: COLORS.textWhite, fontSize: 15, fontWeight: '700' },
 });

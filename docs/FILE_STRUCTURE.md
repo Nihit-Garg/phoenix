@@ -51,7 +51,75 @@ The `shared` package is imported by both `apps/web` and `apps/server`. A monorep
 
 ---
 
-## 2. apps/web — Frontend
+## 2. frontend — React Native / Expo App
+
+> **Platform:** React Native (Expo SDK 57). Runs on iOS, Android, and Web via `expo start`.
+> **Changed from original spec:** Original docs specified Next.js + React Flow web app. Decision was made to use React Native for cross-platform mobile-first experience. All engine and signaling code is identical.
+
+```
+frontend/
+├── App.tsx                         ← Root entry; mounts useMeshEngine() to boot the mesh
+├── index.ts                        ← Expo entry point
+├── app.json                        ← Expo config (name, bundleId, etc.)
+├── package.json
+├── tsconfig.json
+│
+└── src/
+    ├── engine/                     ← Protocol layer (NO React — pure TypeScript)
+    │   ├── MeshEngine.ts           ← Main orchestrator singleton (Dev 5)
+    │   ├── RTCManager.ts           ← WebRTC peer connections + DataChannels (Dev 5)
+    │   ├── PacketRouter.ts         ← Bellman-Ford routing table + next-hop (Dev 5)
+    │   ├── PacketBuilder.ts        ← Constructs all 8 MiragePacket types (Dev 5)
+    │   ├── DuplicateCache.ts       ← 5-min TTL seen-packet cache (Dev 5)
+    │   ├── HeartbeatManager.ts     ← 3s heartbeat; dead-peer detection (Dev 5)
+    │   ├── SCFQueue.ts             ← Priority store-carry-forward queue (Dev 5)
+    │   └── types.ts                ← All engine-local TypeScript types (Dev 5)
+    │
+    ├── stores/                     ← Zustand state stores (Dev 3)
+    │   ├── useMeshStore.ts         ← Peers, routing table, local identity, connection status
+    │   ├── usePacketStore.ts       ← Delivered messages, SCF queue, trace log
+    │   └── useEmergencyStore.ts    ← Emergency markers + acknowledgement state
+    │
+    ├── hooks/                      ← React hooks bridging engine → UI (Dev 3)
+    │   ├── useMeshEngine.ts        ← Boots engine on mount; wires all engine events to stores
+    │   ├── useEmergency.ts         ← Emergency state + broadcastEmergency action
+    │   └── usePeerMessages.ts      ← Per-peer message thread + send action
+    │
+    ├── lib/                        ← Signaling client + identity (Dev 2)
+    │   ├── signaling.ts            ← Socket.IO client; full SignalingClient interface
+    │   ├── nodeId.ts               ← Persistent node ID via AsyncStorage
+    │   └── constants.ts            ← SIGNALING_URL, timing constants
+    │
+    ├── screens/                    ← Full-screen views (Dev 4)
+    │   ├── HomeScreen.tsx          ← SOS button; live peer count; real emergency broadcast
+    │   ├── ChatScreen.tsx          ← Per-peer message thread; real engine send/receive
+    │   ├── MessagesListScreen.tsx  ← Live peer list from useMeshStore; last messages
+    │   └── ProfileScreen.tsx       ← Node identity and settings
+    │
+    ├── components/                 ← Reusable UI components (Dev 4)
+    │   ├── SosButton.tsx           ← Animated ripple SOS button
+    │   ├── AddressCard.tsx         ← Address display card
+    │   ├── ChatBubble.tsx          ← Message bubble with hop trace info
+    │   ├── MessageComposer.tsx     ← Text input + priority picker + send
+    │   └── BottomNav.tsx           ← Tab bar navigation
+    │
+    ├── types/
+    │   └── index.ts                ← Shared UI types (ChatMessage, ScreenType, etc.)
+    │
+    └── theme/
+        └── colors.ts               ← Design token palette
+```
+
+### Module Ownership — frontend
+
+| Folder | Owner | Notes |
+|---|---|---|
+| `engine/` | Dev 5 | Core protocol; no React dependencies |
+| `stores/` | Dev 3 | All Zustand stores |
+| `hooks/` | Dev 3 | React hooks bridging engine to UI |
+| `lib/` | Dev 2 | Signaling client, node ID utility |
+| `screens/` | Dev 4 | Full-screen views |
+| `components/` | Dev 4 | Reusable UI components |
 
 ```
 apps/web/

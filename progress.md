@@ -88,18 +88,32 @@ STATUS values:
 | Timestamp | Developer | Status | Module | Description |
 |---|---|---|---|---|
 | 2026-09-06T23:30 | Dev4 | DONE | `frontend` | Implemented React Native mobile UI: Home SOS screen with animated ripple button & address card, Message conversation view with avatar bubbles, Main Messages inbox with broadcast banner, Profile screen, and custom bottom navigation bar |
+| 2026-09-07T00:43 | Dev3/Dev4 | DONE | `frontend/src/stores/` | Implemented all 3 Zustand stores: `useMeshStore` (peers, routing, identity, connection status), `usePacketStore` (messages, SCF queue, trace log), `useEmergencyStore` (emergency markers + ack) |
+| 2026-09-07T00:43 | Dev3 | DONE | `frontend/src/hooks/useMeshEngine.ts` | Implemented engine boot hook: initialises nodeId, connects signalingClient, calls meshEngine.initialize(), wires all 8 engine events to Zustand stores on mount |
+| 2026-09-07T00:43 | Dev3 | DONE | `frontend/src/hooks/useEmergency.ts` | Implemented emergency hook: exposes unacknowledged emergencies + broadcastEmergency() action |
+| 2026-09-07T00:43 | Dev3 | DONE | `frontend/src/hooks/usePeerMessages.ts` | Implemented per-peer message thread hook: filters messages by peerId + sends via meshEngine |
+| 2026-09-07T00:43 | Dev4 | DONE | `frontend/App.tsx` | Wired useMeshEngine() at root — engine now initialises on app start; passes peerId to ChatScreen |
+| 2026-09-07T00:43 | Dev4 | DONE | `frontend/src/screens/HomeScreen.tsx` | Integrated with useMeshStore — shows live displayName, real peer count badge, connection status strip; SOS fires real meshEngine.sendEmergency() |
+| 2026-09-07T00:43 | Dev4 | DONE | `frontend/src/screens/ChatScreen.tsx` | Integrated with usePeerMessages hook — messages come from engine; send() fires through mesh; empty state + status-aware header |
+| 2026-09-07T00:43 | Dev4 | DONE | `frontend/src/screens/MessagesListScreen.tsx` | Integrated with useMeshStore — shows live connected peers, real per-peer last messages, connection/empty states |
+| 2026-09-07T00:43 | Dev3/Dev4 | NOTE | `packages/shared` | packages/shared monorepo NOT created — engine types self-contained in frontend/src/engine/types.ts; UI types in frontend/src/types/index.ts |
+| 2026-09-07T00:43 | All | NOTE | Platform | Frontend platform changed from Next.js to React Native / Expo. All engine, signaling, and protocol code unchanged. docs/FILE_STRUCTURE.md and docs/TEAM_ASSIGNMENT.md updated to reflect this. |
 
 ---
 
 ## Phase 5 — Resilience
 
-*(Entries go here as Phase 5 progresses)*
+| Timestamp | Developer | Status | Module | Description |
+|---|---|---|---|---|
+| *(entries go here)* | — | — | — | beforeunload LEAVE packet, server rate limiting, IDB SCF persistence, graceful degradation |
 
 ---
 
 ## Phase 6 — Polish
 
-*(Entries go here as Phase 6 progresses)*
+| Timestamp | Developer | Status | Module | Description |
+|---|---|---|---|---|
+| *(entries go here)* | — | — | — | Demo prep, visual polish, README, rehearsal |
 
 ---
 
