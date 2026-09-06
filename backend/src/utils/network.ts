@@ -1,15 +1,5 @@
-import { NetworkInterface, networkInterfaces } from 'os';
-
-/**
- * utils/network.ts — local LAN IP address utility
- *
- * Returns the machine's local LAN IPv4 address (e.g. 192.168.1.42).
- * Called at server startup to print the full URL teammates should use.
- *
- * No external dependencies — Node.js built-in `os` module only.
- */
-
 import os from 'os';
+
 
 /**
  * getLanIp — returns the first non-loopback IPv4 address.
