@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Coverage & Tests
+coverage/
+.nyc_output/
+
+# Cache & Temp
+.eslintcache
+.cache/
+tmp/
+temp/
