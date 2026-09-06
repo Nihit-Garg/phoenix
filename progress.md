@@ -59,7 +59,12 @@ STATUS values:
 
 ## Phase 2 — Transport Layer
 
-*(Entries go here as Phase 2 progresses)*
+| Timestamp | Developer | Status | Module | Description |
+|---|---|---|---|---|
+| 2026-09-06T23:44 | Dev2 (Nihit) | DONE | `frontend/package.json` | Added `socket.io-client ^4.8.1` and `@react-native-async-storage/async-storage ^2.1.2` as dependencies |
+| 2026-09-06T23:44 | Dev2 (Nihit) | DONE | `frontend/src/lib/constants.ts` | Implemented — `SIGNALING_URL` from env, `PROTOCOL_VERSION`, `NODE_ID_PREFIX`, storage keys, timing constants |
+| 2026-09-06T23:44 | Dev2 (Nihit) | DONE | `frontend/src/lib/nodeId.ts` | Implemented — `getOrCreateNodeId()`, `getOrCreateDisplayName()`, `clearIdentity()` using AsyncStorage |
+| 2026-09-06T23:45 | Dev2 (Nihit) | DONE | `frontend/src/lib/signaling.ts` | Implemented — full `SignalingClient` with singleton `signalingClient`; matches all server event shapes; all callbacks for Dev 5 RTCManager |
 
 ---
 
@@ -109,10 +114,11 @@ STATUS values:
 | Timestamp | Changed By | Interface | Change Description | Acknowledged By |
 |---|---|---|---|---|
 | *[first entry goes here]* | — | — | — | — |
-| 2026-09-06T22:38 | Dev3 | `Socket.IO signaling events` | Fully implemented per API_SPEC.md: join→peer-list+new-peer, offer→forward, answer→forward, ice-candidate→forward/drop, leave→peer-left, disconnect→peer-left | Pending Dev2 ack |
-| 2026-09-06T22:36 | Dev3 | `REST /api/health` | Returns `{status, serverTime, connectedPeers, version}` — matches API_SPEC.md exactly | Pending Dev2 ack |
-| 2026-09-06T22:37 | Dev3 | `REST /api/nodes` | Returns `{nodes: NodeSummary[], timestamp}` — matches API_SPEC.md exactly | Pending Dev2 ack |
-| 2026-09-06T22:37 | Dev3 | `REST /api/nodes/:nodeId` | Returns `{node: NodeSummary}` or 404 `{error, message}` | Pending Dev2 ack |
+| 2026-09-06T22:38 | Dev3 | `Socket.IO signaling events` | Fully implemented per API_SPEC.md: join→peer-list+new-peer, offer→forward, answer→forward, ice-candidate→forward/drop, leave→peer-left, disconnect→peer-left | ✅ Dev2 ack — 2026-09-06T23:45 |
+| 2026-09-06T22:36 | Dev3 | `REST /api/health` | Returns `{status, serverTime, connectedPeers, version}` — matches API_SPEC.md exactly | ✅ Dev2 ack — 2026-09-06T23:45 |
+| 2026-09-06T22:37 | Dev3 | `REST /api/nodes` | Returns `{nodes: NodeSummary[], timestamp}` — matches API_SPEC.md exactly | ✅ Dev2 ack — 2026-09-06T23:45 |
+| 2026-09-06T22:37 | Dev3 | `REST /api/nodes/:nodeId` | Returns `{node: NodeSummary}` or 404 `{error, message}` | ✅ Dev2 ack — 2026-09-06T23:45 |
+| 2026-09-06T23:45 | Dev2 (Nihit) | `SignalingClient` singleton | Exported from `frontend/src/lib/signaling.ts`; all callback slots open for Dev5 RTCManager | Pending Dev5 ack |
 
 ---
 
@@ -132,7 +138,7 @@ STATUS values:
 
 | Developer | Blocked On | Waiting For | Since |
 |---|---|---|---|
-| Dev2 | `backend/` (signaling server) | Dev3's backend implementation | RESOLVED — backend fully implemented |
+| Dev5 | RTCManager | Dev2's `SignalingClient` — ✅ now available | 2026-09-06 |
 
 ---
 
