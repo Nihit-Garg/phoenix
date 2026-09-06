@@ -1,45 +1,57 @@
-import { Socket, Server } from 'socket.io';
-import { registry } from '../../registry/registry';
-import { answerSchema } from '../validation';
+/**
+ * signaling/handlers/onAnswer.ts — handles the 'answer' event
+ *
+ * Triggered when: the responding peer emits 'answer' with an SDP answer.
+ *
+ * 1. Validates payload (Zod: AnswerPayload).
+ * 2. Checks that targetSocketId is connected.
+ * 3. If not found: emits 'signaling-error' with code 'TARGET_NOT_FOUND'.
+ * 4. Forwards the SDP answer to targetSocketId with sender metadata.
+ *
+ * See: API_SPEC.md → answer event
+ */
+
+import type { Server, Socket } from 'socket.io';
+import * as registry from '../../registry/registry';
+import { answerSchema, emitSignalingError } from '../validation';
 import { logger } from '../../utils/logger';
 
-export function onAnswer(socket: Socket, io: Server): void {
-  socket.on('answer', (payload: unknown) => {
+export function onAnswer(socket: Socket, io: Server) {
+  return (payload: unknown): void => {
+    registry.updateActivity(socket.id);
+
     const result = answerSchema.safeParse(payload);
 
     if (!result.success) {
-      socket.emit('signaling-error', {
-        code: 'INVALID_PAYLOAD',
-        message: 'Invalid answer payload',
-        context: result.error.flatten(),
+      emitSignalingError(socket, 'INVALID_PAYLOAD', 'Invalid answer payload', {
+        errors: result.error.flatten(),
       });
+      logger.warn('onAnswer', `Invalid answer payload from socket ${socket.id}`);
       return;
     }
 
     const { targetSocketId, sdp } = result.data;
-    const sender = registry.get(socket.id);
 
+    // Check target exists
     const targetSocket = io.sockets.sockets.get(targetSocketId);
     if (!targetSocket) {
-      socket.emit('signaling-error', {
-        code: 'TARGET_NOT_FOUND',
-        message: `Target socket ${targetSocketId} is not connected`,
+      emitSignalingError(socket, 'TARGET_NOT_FOUND', `Target socket ${targetSocketId} not found`);
+      logger.warn('onAnswer', `Target socket not found: ${targetSocketId}`, {
+        fromSocketId: socket.id,
       });
-      logger.warn('onAnswer', 'Target not found', { targetSocketId });
       return;
     }
 
-    registry.touch(socket.id);
+    const senderEntry = registry.get(socket.id);
+    const fromNodeId = senderEntry?.nodeId ?? 'unknown';
 
+    // Forward the answer with sender metadata
     targetSocket.emit('answer', {
       fromSocketId: socket.id,
-      fromNodeId: sender?.nodeId ?? 'unknown',
+      fromNodeId,
       sdp,
     });
 
-    logger.debug('onAnswer', 'Forwarded SDP answer', {
-      from: socket.id,
-      to: targetSocketId,
-    });
-  });
+    logger.debug('onAnswer', `Forwarded answer from ${fromNodeId} to ${targetSocketId}`);
+  };
 }

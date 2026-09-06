@@ -1,38 +1,55 @@
-import { Socket, Server } from 'socket.io';
-import { registry } from '../../registry/registry';
-import { iceCandidateSchema } from '../validation';
+/**
+ * signaling/handlers/onIceCandidate.ts — handles the 'ice-candidate' event
+ *
+ * Triggered when: either peer emits 'ice-candidate' as trickle ICE fires locally.
+ *
+ * 1. Validates payload (Zod: IceCandidatePayload).
+ * 2. Silently drops if targetSocketId is not connected (ICE candidates can be lost).
+ * 3. Forwards the ICE candidate to targetSocketId with sender metadata.
+ *
+ * Note: Unlike offer/answer, a missing target is silently dropped (not an error).
+ *
+ * See: API_SPEC.md → ice-candidate event
+ */
+
+import type { Server, Socket } from 'socket.io';
+import * as registry from '../../registry/registry';
+import { iceCandidateSchema, emitSignalingError } from '../validation';
 import { logger } from '../../utils/logger';
 
-export function onIceCandidate(socket: Socket, io: Server): void {
-  socket.on('ice-candidate', (payload: unknown) => {
+export function onIceCandidate(socket: Socket, io: Server) {
+  return (payload: unknown): void => {
+    registry.updateActivity(socket.id);
+
     const result = iceCandidateSchema.safeParse(payload);
 
     if (!result.success) {
-      // Silently drop malformed ICE candidates — they are not critical.
-      logger.warn('onIceCandidate', 'Invalid ICE candidate payload, dropped', {
-        socketId: socket.id,
+      emitSignalingError(socket, 'INVALID_PAYLOAD', 'Invalid ice-candidate payload', {
+        errors: result.error.flatten(),
       });
+      logger.warn('onIceCandidate', `Invalid ice-candidate payload from socket ${socket.id}`);
       return;
     }
 
     const { targetSocketId, candidate } = result.data;
 
+    // Silently drop if target is not connected — ICE is tolerant of lost candidates
     const targetSocket = io.sockets.sockets.get(targetSocketId);
     if (!targetSocket) {
-      // Silently drop — ICE negotiation is tolerant of lost candidates.
-      logger.debug('onIceCandidate', 'Target not found, candidate dropped', {
-        targetSocketId,
-      });
+      logger.debug('onIceCandidate', `Target not found, silently dropping: ${targetSocketId}`);
       return;
     }
 
-    registry.touch(socket.id);
+    const senderEntry = registry.get(socket.id);
+    const fromNodeId = senderEntry?.nodeId ?? 'unknown';
 
-    const sender = registry.get(socket.id);
+    // Forward the ICE candidate with sender metadata
     targetSocket.emit('ice-candidate', {
       fromSocketId: socket.id,
-      fromNodeId: sender?.nodeId ?? 'unknown',
+      fromNodeId,
       candidate,
     });
-  });
+
+    logger.debug('onIceCandidate', `Forwarded ICE candidate from ${fromNodeId} to ${targetSocketId}`);
+  };
 }

@@ -1,17 +1,29 @@
-import { Router, Request, Response } from 'express';
-import { registry } from '../registry/registry';
+/**
+ * routes/health.ts — GET /api/health
+ *
+ * Returns a 200 JSON response confirming the server is alive.
+ * Imports registry to get connectedPeers count.
+ *
+ * Response shape (see API_SPEC.md → GET /api/health):
+ * {
+ *   status: 'ok',
+ *   serverTime: number,       // Date.now()
+ *   connectedPeers: number,   // registry.size()
+ *   version: string           // from package.json
+ * }
+ */
+
+import { Router } from 'express';
+import { size } from '../registry/registry';
+import { version } from '../../package.json';
 
 const router = Router();
 
-router.get('/', (_req: Request, res: Response) => {
-  // Lazy import to avoid circular dep — package.json is in project root.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { version } = require('../../package.json') as { version: string };
-
-  res.json({
+router.get('/health', (_req, res) => {
+  res.status(200).json({
     status: 'ok',
     serverTime: Date.now(),
-    connectedPeers: registry.size(),
+    connectedPeers: size(),
     version,
   });
 });

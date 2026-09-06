@@ -1,62 +1,95 @@
-import { RegistryEntry, NodeSummary } from './registry.types';
+/**
+ * registry/registry.ts — in-memory peer registry
+ *
+ * This is the ONLY stateful module on the server.
+ * It holds a Map<socketId, RegistryEntry> of all currently-connected peers.
+ *
+ * Implemented as a module-level singleton Map — no class needed.
+ */
 
-// Single in-memory Map — the only stateful object on the server.
-const store = new Map<string, RegistryEntry>();
+import type { RegistryEntry, NodeSummary } from './registry.types';
 
-export const registry = {
-  /** Add or update an entry keyed by socketId. */
-  upsert(socketId: string, entry: RegistryEntry): void {
-    store.set(socketId, entry);
-  },
+// ── Singleton registry state ─────────────────────────────────────────────────
+const registry = new Map<string, RegistryEntry>();
 
-  /** Remove an entry and return it. Returns undefined if not found. */
-  remove(socketId: string): RegistryEntry | undefined {
-    const entry = store.get(socketId);
-    store.delete(socketId);
-    return entry;
-  },
+// ── Public API ───────────────────────────────────────────────────────────────
 
-  /** Look up by socketId. */
-  get(socketId: string): RegistryEntry | undefined {
-    return store.get(socketId);
-  },
+/**
+ * upsert — Add or update a registry entry for the given socketId.
+ */
+export function upsert(socketId: string, entry: RegistryEntry): void {
+  registry.set(socketId, entry);
+}
 
-  /** Look up by persistent nodeId (linear scan — acceptable for ≤50 peers). */
-  getByNodeId(nodeId: string): RegistryEntry | undefined {
-    for (const entry of store.values()) {
-      if (entry.nodeId === nodeId) return entry;
-    }
-    return undefined;
-  },
+/**
+ * remove — Remove and return the entry for the given socketId.
+ * Returns undefined if not found (idempotent).
+ */
+export function remove(socketId: string): RegistryEntry | undefined {
+  const entry = registry.get(socketId);
+  registry.delete(socketId);
+  return entry;
+}
 
-  /** All entries as an array. */
-  getAll(): RegistryEntry[] {
-    return Array.from(store.values());
-  },
+/**
+ * get — Return the entry for the given socketId, or undefined.
+ */
+export function get(socketId: string): RegistryEntry | undefined {
+  return registry.get(socketId);
+}
 
-  /** All entries except the one with the given socketId. */
-  getAllExcept(socketId: string): RegistryEntry[] {
-    return Array.from(store.values()).filter(e => e.socketId !== socketId);
-  },
+/**
+ * getByNodeId — Look up a peer by their persistent nodeId (not socketId).
+ * Linear scan — acceptable for the small peer counts in the MVP.
+ */
+export function getByNodeId(nodeId: string): RegistryEntry | undefined {
+  for (const entry of registry.values()) {
+    if (entry.nodeId === nodeId) return entry;
+  }
+  return undefined;
+}
 
-  /** Current peer count. */
-  size(): number {
-    return store.size;
-  },
+/**
+ * getAll — Return all current entries as an array.
+ */
+export function getAll(): RegistryEntry[] {
+  return Array.from(registry.values());
+}
 
-  /** Update the lastActivityAt timestamp for a socket. */
-  touch(socketId: string): void {
-    const entry = store.get(socketId);
-    if (entry) entry.lastActivityAt = Date.now();
-  },
+/**
+ * getAllExcept — Return all entries except the one with the given socketId.
+ * Used to build the 'peer-list' response for a newly-joined client.
+ */
+export function getAllExcept(socketId: string): RegistryEntry[] {
+  return Array.from(registry.values()).filter((e) => e.socketId !== socketId);
+}
 
-  /** Convert a full RegistryEntry to the public-facing NodeSummary shape. */
-  toSummary(entry: RegistryEntry): NodeSummary {
-    return {
-      nodeId: entry.nodeId,
-      socketId: entry.socketId,
-      displayName: entry.displayName,
-      connectedAt: entry.connectedAt,
-    };
-  },
-};
+/**
+ * size — Return the number of currently-connected peers.
+ */
+export function size(): number {
+  return registry.size;
+}
+
+/**
+ * toNodeSummary — Convert a full RegistryEntry to the public NodeSummary shape.
+ */
+export function toNodeSummary(entry: RegistryEntry): NodeSummary {
+  return {
+    nodeId: entry.nodeId,
+    socketId: entry.socketId,
+    displayName: entry.displayName,
+    connectedAt: entry.connectedAt,
+  };
+}
+
+/**
+ * updateActivity — Touch lastActivityAt for the given socketId.
+ * Called on every event received from the socket to keep the timestamp fresh.
+ */
+export function updateActivity(socketId: string): void {
+  const entry = registry.get(socketId);
+  if (entry) {
+    entry.lastActivityAt = Date.now();
+  }
+}

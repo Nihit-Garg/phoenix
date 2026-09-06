@@ -1,19 +1,26 @@
 import { NetworkInterface, networkInterfaces } from 'os';
 
 /**
- * Returns the first non-loopback IPv4 address found on the machine.
- * Falls back to '0.0.0.0' if none is found.
+ * utils/network.ts — local LAN IP address utility
+ *
+ * Iterates os.networkInterfaces() to find the first non-loopback IPv4 address.
+ * Used at server startup to print the full URL teammates should use.
+ */
+
+import os from 'os';
+
+/**
+ * getLanIp — returns the machine's local LAN IPv4 address.
+ * Returns '0.0.0.0' as a fallback if none is found.
  */
 export function getLanIp(): string {
-  const nets = networkInterfaces();
+  const interfaces = os.networkInterfaces();
 
-  for (const name of Object.keys(nets)) {
-    const ifaces = nets[name];
-    if (!ifaces) continue;
-
-    for (const iface of ifaces) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
+  for (const iface of Object.values(interfaces)) {
+    if (!iface) continue;
+    for (const addr of iface) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        return addr.address;
       }
     }
   }
@@ -22,9 +29,11 @@ export function getLanIp(): string {
 }
 
 /**
- * Returns the full server URL for display at startup.
- * e.g. "http://192.168.1.42:3001"
+ * getServerUrl — returns the full server URL string.
+ * Example: "http://192.168.1.42:3001"
+ * Used for the startup banner in server.ts.
  */
 export function getServerUrl(port: number): string {
-  return `http://${getLanIp()}:${port}`;
+  const ip = getLanIp();
+  return `http://${ip}:${port}`;
 }
