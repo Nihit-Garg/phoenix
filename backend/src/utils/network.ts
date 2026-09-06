@@ -1,24 +1,37 @@
 /**
  * utils/network.ts — local LAN IP address utility
  *
- * Responsibilities:
- * - Return the machine's local LAN IPv4 address (e.g. 192.168.1.42)
- * - Called at server startup to print the full URL teammates should use
- *
- * Export:
- *
- *   getLanIp(): string
- *     Iterates over os.networkInterfaces() to find the first non-loopback
- *     IPv4 address. Returns '0.0.0.0' as a fallback if none found.
- *
- *   getServerUrl(port: number): string
- *     Returns the full server URL string, e.g. "http://192.168.1.42:3001"
- *     Used for the startup banner in server.ts.
- *
- * Implementation hint:
- *   import os from 'os';
- *   const interfaces = os.networkInterfaces();
- *   // filter for family === 'IPv4' and internal === false
- *
- * No external dependencies needed — Node.js built-in `os` module only.
+ * Iterates os.networkInterfaces() to find the first non-loopback IPv4 address.
+ * Used at server startup to print the full URL teammates should use.
  */
+
+import os from 'os';
+
+/**
+ * getLanIp — returns the machine's local LAN IPv4 address.
+ * Returns '0.0.0.0' as a fallback if none is found.
+ */
+export function getLanIp(): string {
+  const interfaces = os.networkInterfaces();
+
+  for (const iface of Object.values(interfaces)) {
+    if (!iface) continue;
+    for (const addr of iface) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        return addr.address;
+      }
+    }
+  }
+
+  return '0.0.0.0';
+}
+
+/**
+ * getServerUrl — returns the full server URL string.
+ * Example: "http://192.168.1.42:3001"
+ * Used for the startup banner in server.ts.
+ */
+export function getServerUrl(port: number): string {
+  const ip = getLanIp();
+  return `http://${ip}:${port}`;
+}
