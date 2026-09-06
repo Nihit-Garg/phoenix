@@ -70,7 +70,16 @@ STATUS values:
 
 ## Phase 3 — Protocol & Routing
 
-*(Entries go here as Phase 3 progresses)*
+| Timestamp | Developer | Status | Module | Description |
+|---|---|---|---|---|
+| 2026-09-06T23:49 | Dev5 (Nihit) | DONE | `frontend/src/engine/types.ts` | Defined all engine-local types: MiragePacket, MiragePacketType, all payloads, RoutingEntry, MirageNode, QueueEntry, EmergencyMarker, constants |
+| 2026-09-06T23:49 | Dev5 (Nihit) | DONE | `frontend/src/engine/DuplicateCache.ts` | Implemented time-bounded seen-packet cache (5min TTL, 2000 entry cap) with `isDuplicate()` |
+| 2026-09-06T23:50 | Dev5 (Nihit) | DONE | `frontend/src/engine/PacketBuilder.ts` | Implemented factory for all 8 packet types + `forwardCopy()` (TTL decrement, hopCount increment, trace append) |
+| 2026-09-06T23:50 | Dev5 (Nihit) | DONE | `frontend/src/engine/PacketRouter.ts` | Implemented Bellman-Ford distance-vector routing table with `mergeRoutes()`, `getNextHop()`, `removePeer()` |
+| 2026-09-06T23:51 | Dev5 (Nihit) | DONE | `frontend/src/engine/SCFQueue.ts` | Implemented priority-ordered SCF queue (EMERGENCY>HIGH>NORMAL>LOW) with `drainRoutable()` |
+| 2026-09-06T23:51 | Dev5 (Nihit) | DONE | `frontend/src/engine/HeartbeatManager.ts` | Implemented 3s interval heartbeat with 3-missed-beat dead detection; `onDead` / `onSuspect` callbacks |
+| 2026-09-06T23:52 | Dev5 (Nihit) | DONE | `frontend/src/engine/RTCManager.ts` | Implemented full WebRTC lifecycle: createOffer/Answer, ICE trickle, DataChannel (ordered=false, maxRetransmits=0), peer cleanup |
+| 2026-09-06T23:52 | Dev5 (Nihit) | DONE | `frontend/src/engine/MeshEngine.ts` | Implemented full orchestrator singleton: all 8 packet type handlers, SCF drain on topology change, typed event emitter for Dev 3 stores |
 
 ---
 
@@ -138,7 +147,7 @@ STATUS values:
 
 | Developer | Blocked On | Waiting For | Since |
 |---|---|---|---|
-| Dev5 | RTCManager | Dev2's `SignalingClient` — ✅ now available | 2026-09-06 |
+| Dev5 | RTCManager | Dev2's `SignalingClient` — ✅ resolved — MeshEngine implemented | RESOLVED |
 
 ---
 
