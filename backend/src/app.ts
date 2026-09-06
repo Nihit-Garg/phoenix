@@ -1,15 +1,28 @@
-/**
- * app.ts — Express application factory
- *
- * Responsibilities:
- * - Create and configure the Express app instance
- * - Apply middleware: cors (use CORS_ORIGINS from env), express.json()
- * - Mount route handlers:
- *     GET /api/health  → routes/health.ts
- *     GET /api/nodes   → routes/nodes.ts
- * - Export the configured app (and optionally the http.Server)
- *
- * Does NOT start listening — that is done in server.ts
- *
- * See: API_SPEC.md → REST Endpoints
- */
+import express, { Application } from 'express';
+import cors from 'cors';
+import healthRouter from './routes/health';
+import nodesRouter from './routes/nodes';
+
+const corsOrigins = process.env.CORS_ORIGINS ?? '*';
+
+export function createApp(): Application {
+  const app = express();
+
+  app.use(cors({
+    origin: corsOrigins === '*' ? '*' : corsOrigins.split(',').map(o => o.trim()),
+    methods: ['GET'],
+  }));
+
+  app.use(express.json());
+
+  // Mount REST routes.
+  app.use('/api/health', healthRouter);
+  app.use('/api/nodes', nodesRouter);
+
+  // 404 fallback.
+  app.use((_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
+  return app;
+}

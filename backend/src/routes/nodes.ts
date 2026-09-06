@@ -1,18 +1,24 @@
-/**
- * routes/nodes.ts — GET /api/nodes and GET /api/nodes/:nodeId
- *
- * Responsibilities:
- * - GET /api/nodes
- *     Return all currently-connected nodes from the in-memory registry.
- *     Response: { nodes: NodeSummary[], timestamp: number }
- *
- * - GET /api/nodes/:nodeId
- *     Look up a single node by its persistent nodeId.
- *     Response: { node: NodeSummary }
- *     Error: 404 if not found
- *
- * Both routes import from registry/registry.ts — do NOT store state here.
- *
- * See: API_SPEC.md → GET /api/nodes and GET /api/nodes/:nodeId
- * Types: NodeSummary (DATA_MODELS.md → Node section)
- */
+import { Router, Request, Response } from 'express';
+import { registry } from '../registry/registry';
+
+const router = Router();
+
+/** GET /api/nodes — return all currently connected nodes. */
+router.get('/', (_req: Request, res: Response) => {
+  const nodes = registry.getAll().map(registry.toSummary);
+  res.json({ nodes, timestamp: Date.now() });
+});
+
+/** GET /api/nodes/:nodeId — look up a single node by persistent nodeId. */
+router.get('/:nodeId', (req: Request, res: Response) => {
+  const entry = registry.getByNodeId(req.params.nodeId);
+
+  if (!entry) {
+    res.status(404).json({ error: 'Node not found', nodeId: req.params.nodeId });
+    return;
+  }
+
+  res.json({ node: registry.toSummary(entry) });
+});
+
+export default router;

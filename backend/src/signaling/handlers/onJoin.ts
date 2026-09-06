@@ -1,25 +1,45 @@
-/**
- * signaling/handlers/onJoin.ts — handles the 'join' event
- *
- * Triggered when: a client emits socket.emit('join', JoinPayload)
- *
- * Responsibilities:
- * 1. Validate payload using validation.ts (Zod schema for JoinPayload)
- * 2. If invalid: emit 'signaling-error' with code 'INVALID_PAYLOAD' back to sender
- * 3. If valid:
- *    a. Upsert the client into the registry (registry.upsert(socket.id, entry))
- *    b. Emit 'peer-list' to the joining socket with all OTHER connected nodes
- *    c. Broadcast 'new-peer' to all OTHER sockets with the new node's summary
- * 4. Log the join event via logger.ts
- *
- * Payload type: JoinPayload (see API_SPEC.md → join event)
- * {
- *   nodeId: string
- *   displayName: string
- *   protocolVersion: string
- * }
- *
- * Emits:
- *   → 'peer-list'  to the joining socket
- *   → 'new-peer'   broadcast to all other sockets
- */
+import { Socket, Server } from 'socket.io';
+import { registry } from '../../registry/registry';
+import { joinSchema } from '../validation';
+import { logger } from '../../utils/logger';
+
+export function onJoin(socket: Socket, io: Server): void {
+  socket.on('join', (payload: unknown) => {
+    const result = joinSchema.safeParse(payload);
+
+    if (!result.success) {
+      socket.emit('signaling-error', {
+        code: 'INVALID_PAYLOAD',
+        message: 'Invalid join payload',
+        context: result.error.flatten(),
+      });
+      logger.warn('onJoin', 'Invalid join payload', { socketId: socket.id });
+      return;
+    }
+
+    const { nodeId, displayName, protocolVersion } = result.data;
+    const now = Date.now();
+
+    registry.upsert(socket.id, {
+      nodeId,
+      socketId: socket.id,
+      displayName,
+      protocolVersion,
+      connectedAt: now,
+      lastActivityAt: now,
+    });
+
+    // Send all current peers to the joining client (excluding self).
+    const existingPeers = registry.getAllExcept(socket.id).map(registry.toSummary);
+    socket.emit('peer-list', { peers: existingPeers });
+
+    // Notify all other connected clients about the new peer.
+    const newPeerSummary = registry.toSummary(registry.get(socket.id)!);
+    socket.broadcast.emit('new-peer', { peer: newPeerSummary });
+
+    logger.info('onJoin', `Node joined: ${displayName} (${nodeId})`, {
+      socketId: socket.id,
+      totalPeers: registry.size(),
+    });
+  });
+}

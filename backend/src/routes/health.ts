@@ -1,18 +1,19 @@
-/**
- * routes/health.ts — GET /api/health
- *
- * Responsibilities:
- * - Return a 200 JSON response confirming the server is alive
- * - Import registry from registry/registry.ts to get connectedPeers count
- *
- * Response shape (see API_SPEC.md → GET /api/health):
- * {
- *   status: 'ok',
- *   serverTime: number,       // Date.now()
- *   connectedPeers: number,   // registry.size()
- *   version: string           // from package.json
- * }
- *
- * Error cases:
- * - 503 if server is shutting down (optional for MVP)
- */
+import { Router, Request, Response } from 'express';
+import { registry } from '../registry/registry';
+
+const router = Router();
+
+router.get('/', (_req: Request, res: Response) => {
+  // Lazy import to avoid circular dep — package.json is in project root.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { version } = require('../../package.json') as { version: string };
+
+  res.json({
+    status: 'ok',
+    serverTime: Date.now(),
+    connectedPeers: registry.size(),
+    version,
+  });
+});
+
+export default router;
