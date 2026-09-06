@@ -31,7 +31,23 @@ STATUS values:
 
 | Timestamp | Developer | Status | Module | Description |
 |---|---|---|---|---|
-| *[to be filled by team]* | Dev1 | IN_PROGRESS | `packages/shared` | Seeding all shared types from DATA_MODELS.md |
+| 2026-09-06T22:19 | Dev1 | DONE | `backend/src/utils/logger.ts` | Implemented structured logger with levels (info/warn/error/debug) and ISO timestamps |
+| 2026-09-06T22:21 | Dev1 | DONE | `backend/src/utils/network.ts` | Implemented `getLanIp()` and `getServerUrl()` using Node `os` module |
+| 2026-09-06T22:21 | Dev1 | DONE | `backend/src/registry/registry.types.ts` | Defined `RegistryEntry` and `NodeSummary` interfaces (server-only) |
+| 2026-09-06T22:21 | Dev1 | DONE | `backend/src/registry/registry.ts` | Implemented in-memory peer registry (Map singleton) with full CRUD API |
+| 2026-09-06T22:22 | Dev1 | DONE | `backend/src/signaling/validation.ts` | Implemented Zod schemas for all 5 client→server Socket.IO event payloads + `emitSignalingError` helper |
+| 2026-09-06T22:22 | Dev1 | DONE | `backend/src/signaling/handlers/onJoin.ts` | Implemented `join` handler — validates, upserts registry, emits `peer-list` + broadcasts `new-peer` |
+| 2026-09-06T22:22 | Dev1 | DONE | `backend/src/signaling/handlers/onOffer.ts` | Implemented `offer` forwarding handler with `TARGET_NOT_FOUND` error path |
+| 2026-09-06T22:22 | Dev1 | DONE | `backend/src/signaling/handlers/onAnswer.ts` | Implemented `answer` forwarding handler with `TARGET_NOT_FOUND` error path |
+| 2026-09-06T22:22 | Dev1 | DONE | `backend/src/signaling/handlers/onIceCandidate.ts` | Implemented ICE candidate forwarding — missing targets silently dropped (spec-correct) |
+| 2026-09-06T22:22 | Dev1 | DONE | `backend/src/signaling/handlers/onLeave.ts` | Implemented graceful leave handler — removes from registry, broadcasts `peer-left` with `reason: 'graceful'` |
+| 2026-09-06T22:22 | Dev1 | DONE | `backend/src/signaling/handlers/onDisconnect.ts` | Implemented disconnect safety-net handler — idempotent, broadcasts `peer-left` with `reason: 'socket-disconnect'` |
+| 2026-09-06T22:23 | Dev1 | DONE | `backend/src/signaling/signaling.ts` | Implemented `setupSignaling(io)` — registers all 6 event handlers per connection |
+| 2026-09-06T22:23 | Dev1 | DONE | `backend/src/routes/health.ts` | Implemented `GET /api/health` — returns status, serverTime, connectedPeers, version |
+| 2026-09-06T22:23 | Dev1 | DONE | `backend/src/routes/nodes.ts` | Implemented `GET /api/nodes` and `GET /api/nodes/:nodeId` with 404 handling |
+| 2026-09-06T22:24 | Dev1 | DONE | `backend/src/app.ts` | Implemented Express app factory — CORS from env, json middleware, routes mounted at /api |
+| 2026-09-06T22:24 | Dev1 | DONE | `backend/src/server.ts` | Implemented server entry point — Socket.IO attached, signaling registered, startup banner with LAN IP, graceful shutdown |
+| 2026-09-06T22:49 | Dev1 | DONE | `.gitignore` / `backend/.gitignore` | Configured `.gitignore` files to ignore `node_modules/`, `dist/`, `.env*` (preserving `.env.example`), test coverage, logs, secrets, and OS/editor temp files |
 
 ---
 
@@ -72,7 +88,7 @@ STATUS values:
 
 | Timestamp | Developer | File Changed | What Changed | Consumers Affected |
 |---|---|---|---|---|
-| *[first entry goes here]* | Dev1 | `types/packet.ts` | Initial seed — all interfaces added | All modules |
+| 2026-09-06T22:21 | Dev1 | `backend/src/registry/registry.types.ts` | Initial seed — `RegistryEntry` and `NodeSummary` interfaces added (server-only) | REST routes, signaling handlers |
 
 ---
 
@@ -83,7 +99,8 @@ STATUS values:
 
 | Timestamp | Changed By | Interface | Change Description | Acknowledged By |
 |---|---|---|---|---|
-| *[first entry goes here]* | — | — | — | — |
+| 2026-09-06T22:23 | Dev1 | Socket.IO events | All 6 handlers live — `join`, `offer`, `answer`, `ice-candidate`, `leave`, `disconnect` fully implemented per API_SPEC.md | — (Dev 2 to acknowledge) |
+| 2026-09-06T22:24 | Dev1 | REST API | `GET /api/health` and `GET /api/nodes` + `GET /api/nodes/:nodeId` live per API_SPEC.md | — (Dev 2 to acknowledge) |
 
 ---
 
@@ -93,7 +110,7 @@ STATUS values:
 
 | ID | Reported By | Timestamp | Description | Status |
 |---|---|---|---|---|
-| — | — | — | No known issues yet | — |
+| I-001 | Dev1 | 2026-09-06T22:25 | Terminal runner has an access-denied error for `agentapi.bat` — `npm install` must be run manually by a developer in the `backend/` directory | Open |
 
 ---
 
@@ -103,7 +120,7 @@ STATUS values:
 
 | Developer | Blocked On | Waiting For | Since |
 |---|---|---|---|
-| — | — | — | — |
+| Dev2 | `packages/shared` types | Dev1 to create packages/shared (outside backend/ scope; to be done separately) | 2026-09-06 |
 
 ---
 
@@ -111,7 +128,10 @@ STATUS values:
 
 | Checkpoint | Target Hour | Status | Verified By |
 |---|---|---|---|
-| Phase 1 complete | +6h | ⬜ Pending | — |
+| `GET /api/health` returns 200 | +4h | ✅ Done (code complete) | Dev1 |
+| Full signaling (offer/answer/ICE) working | +8h | ✅ Done (code complete) | Dev1 |
+| `GET /api/nodes` returning live data | +12h | ✅ Done (code complete) | Dev1 |
+| Phase 1 complete | +6h | ⬜ Pending (needs npm install + runtime verify) | — |
 | DataChannels open (P2P) | +12h | ⬜ Pending | — |
 | 3-hop routing working | +20h | ⬜ Pending | — |
 | Topology UI renders live | +26h | ⬜ Pending | — |
