@@ -1,0 +1,70 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+
+# ─── Environment files ───────────────────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Keep .env.example — it's a template for teammates
+
+# ─── TypeScript ──────────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── Turbo ───────────────────────────────────────────────────────────────────
+.turbo/
+
+# ─── Testing & Coverage ──────────────────────────────────────────────────────
+coverage/
+*.lcov
+.nyc_output/
+
+# ─── Linting & Formatting ───────────────────────────────────────────────────
+.eslintcache
+.prettiercache
+
+# ─── Runtime / Process & Development ─────────────────────────────────────────
+pids/
+*.pid
+*.seed
+*.pid.lock
+.ts-node/
+
+# ─── SSL / TLS Certificates (Local HTTPS / WSS Signaling) ────────────────────
+*.pem
+*.key
+*.crt
+*.cert
+
+# ─── Temporary & Cache ───────────────────────────────────────────────────────
+.cache/
+tmp/
+temp/
+*.tmp
