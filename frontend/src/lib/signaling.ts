@@ -228,7 +228,8 @@ class SignalingClientImpl implements SignalingClient {
     });
 
     this.socket.on('signaling-error', (error: SignalingError) => {
-      console.error(`[SignalingClient] Server error: ${error.code} — ${error.message}`);
+      const log = error.code === 'TARGET_NOT_FOUND' ? console.warn : console.error;
+      log(`[SignalingClient] Server error: ${error.code} — ${error.message}`);
       this.onError?.(error);
     });
   }

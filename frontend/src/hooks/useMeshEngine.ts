@@ -14,7 +14,6 @@
  */
 
 import { useEffect, useCallback } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
 import { meshEngine } from '../engine/MeshEngine';
 import { signalingClient } from '../lib/signaling';
 import { getOrCreateNodeId, getOrCreateDisplayName } from '../lib/nodeId';
@@ -128,7 +127,11 @@ export function useMeshEngine() {
           console.info(`[Mirage] Signaling connected: ${SIGNALING_URL}`);
         };
         signalingClient.onDisconnect = () => setConnectionStatus('disconnected');
-        signalingClient.onError = () => setConnectionStatus('disconnected');
+        // TARGET_NOT_FOUND is expected when a peer closes while SDP/ICE is in
+        // flight. It is not a loss of this client's Socket.IO connection.
+        signalingClient.onError = (error) => {
+          console.warn(`[Mirage] Signaling error: ${error.code}`);
+        };
 
         if (!IS_SIGNALING_URL_CONFIGURED) {
           console.warn(
@@ -145,18 +148,9 @@ export function useMeshEngine() {
 
     init();
 
-    // ── Handle app going to background / foreground ────────────────────────
-    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      if (nextState === 'background') {
-        signalingClient.sendLeave();
-      } else if (nextState === 'active' && localNodeId) {
-        // Re-join on resume
-        signalingClient.join(localNodeId, localDisplayName);
-      }
-    });
-
     return () => {
-      sub.remove();
+      // Do not emit leave during React's development cleanup or browser focus
+      // changes. Socket.IO detects a genuinely closed browser connection.
     };
   }, []);
 
