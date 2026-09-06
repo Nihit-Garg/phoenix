@@ -110,11 +110,11 @@ class MeshEngineClass {
 
     // Wire signaling — peer discovery
     signalingClient.onPeerList = async (peers: NodeSummary[]) => {
-      for (const peer of peers) await this.rtc.connectToPeer(peer);
+      for (const peer of peers) await this._connectIfInitiator(peer);
     };
 
     signalingClient.onNewPeer = async (peer: NodeSummary) => {
-      await this.rtc.connectToPeer(peer);
+      await this._connectIfInitiator(peer);
     };
 
     this.hbm.start();
@@ -126,6 +126,17 @@ class MeshEngineClass {
     this.router.clear();
     this.cache.clear();
     this.peers.clear();
+  }
+
+  /**
+   * Both sides learn about a join: the newcomer gets `peer-list` and existing
+   * nodes get `new-peer`. Elect one offerer from the stable node IDs so the two
+   * browsers do not create concurrent offers (WebRTC offer glare).
+   */
+  private async _connectIfInitiator(peer: NodeSummary): Promise<void> {
+    if (this.localNodeId.localeCompare(peer.nodeId) < 0) {
+      await this.rtc.connectToPeer(peer);
+    }
   }
 
   // ─── Public send API ─────────────────────────────────────────────────────────
