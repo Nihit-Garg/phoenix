@@ -40,3 +40,31 @@ Thumbs.db
 
 # ─── Turbo ───────────────────────────────────────────────────────────────────
 .turbo/
+
+# ─── Testing & Coverage ──────────────────────────────────────────────────────
+coverage/
+*.lcov
+.nyc_output/
+
+# ─── Linting & Formatting ───────────────────────────────────────────────────
+.eslintcache
+.prettiercache
+
+# ─── Runtime / Process & Development ─────────────────────────────────────────
+pids/
+*.pid
+*.seed
+*.pid.lock
+.ts-node/
+
+# ─── SSL / TLS Certificates (Local HTTPS / WSS Signaling) ────────────────────
+*.pem
+*.key
+*.crt
+*.cert
+
+# ─── Temporary & Cache ───────────────────────────────────────────────────────
+.cache/
+tmp/
+temp/
+*.tmp

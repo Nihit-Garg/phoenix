@@ -1,0 +1,59 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+
+# ─── Environment files ───────────────────────────────────────────────────────
+.env
+.env.*
+# Keep .env.example — it's a template for teammates
+!.env.example
+
+# ─── TypeScript ──────────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Testing & Coverage ──────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Caches & Temporary ──────────────────────────────────────────────────────
+.eslintcache
+.cache/
+tmp/
+temp/
+
+# ─── Secrets & Certificates ──────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── Turbo ───────────────────────────────────────────────────────────────────
+.turbo/

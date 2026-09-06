@@ -1,25 +1,73 @@
 /**
- * signaling/handlers/onJoin.ts — handles the 'join' event
+ * signaling/handlers/onJoin.ts — handles the 'join' Socket.IO event
  *
  * Triggered when: a client emits socket.emit('join', JoinPayload)
  *
- * Responsibilities:
- * 1. Validate payload using validation.ts (Zod schema for JoinPayload)
- * 2. If invalid: emit 'signaling-error' with code 'INVALID_PAYLOAD' back to sender
- * 3. If valid:
- *    a. Upsert the client into the registry (registry.upsert(socket.id, entry))
- *    b. Emit 'peer-list' to the joining socket with all OTHER connected nodes
- *    c. Broadcast 'new-peer' to all OTHER sockets with the new node's summary
- * 4. Log the join event via logger.ts
+ * Flow:
+ *   1. Validate payload via joinSchema
+ *   2. If invalid: emit 'signaling-error' INVALID_PAYLOAD back to sender
+ *   3. If valid:
+ *      a. Upsert client into the registry
+ *      b. Emit 'peer-list' to the joining socket (all OTHER connected peers)
+ *      c. Broadcast 'new-peer' to all OTHER sockets
+ *   4. Log the join
  *
- * Payload type: JoinPayload (see API_SPEC.md → join event)
- * {
- *   nodeId: string
- *   displayName: string
- *   protocolVersion: string
- * }
- *
- * Emits:
- *   → 'peer-list'  to the joining socket
- *   → 'new-peer'   broadcast to all other sockets
+ * See: API_SPEC.md → join event
  */
+
+import { Socket, Server } from 'socket.io';
+import * as registry from '../../registry/registry';
+import { joinSchema } from '../validation';
+import { logger } from '../../utils/logger';
+
+export function onJoin(socket: Socket, io: Server) {
+  return (payload: unknown): void => {
+    // Step 1 — Validate payload
+    const result = joinSchema.safeParse(payload);
+    if (!result.success) {
+      logger.warn('onJoin', 'Invalid join payload', {
+        socketId: socket.id,
+        errors: result.error.flatten(),
+      });
+      socket.emit('signaling-error', {
+        code: 'INVALID_PAYLOAD',
+        message: 'join payload failed validation',
+        context: { errors: result.error.flatten() },
+      });
+      return;
+    }
+
+    const { nodeId, displayName, protocolVersion } = result.data;
+    const now = Date.now();
+
+    // Step 3a — Upsert into registry
+    registry.upsert(socket.id, {
+      nodeId,
+      socketId: socket.id,
+      displayName,
+      protocolVersion,
+      connectedAt: now,
+      lastActivityAt: now,
+    });
+
+    // Step 3b — Emit 'peer-list' to the joining socket (all OTHERS)
+    const otherPeers = registry
+      .getAllExcept(socket.id)
+      .map(registry.toNodeSummary);
+
+    socket.emit('peer-list', { peers: otherPeers });
+
+    // Step 3c — Broadcast 'new-peer' to ALL other connected sockets
+    const newPeerSummary = registry.toNodeSummary(
+      registry.get(socket.id)!
+    );
+    socket.broadcast.emit('new-peer', { peer: newPeerSummary });
+
+    // Step 4 — Log
+    logger.info('onJoin', `Node joined: ${nodeId} (${displayName})`, {
+      socketId: socket.id,
+      protocolVersion,
+      totalPeers: registry.size(),
+    });
+  };
+}
