@@ -41,7 +41,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages.length]);
 
-  const handleSend = (text: string, priority: 'NORMAL' | 'HIGH' | 'EMERGENCY') => {
+  const handleSend = (text: string, priority: 'NORMAL' | 'HIGH') => {
     send(text, priority);
   };
 

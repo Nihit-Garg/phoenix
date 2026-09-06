@@ -36,6 +36,22 @@ export class PacketRouter {
     return Array.from(this.table.values());
   }
 
+  addDirectPeer(nodeId: string): boolean {
+    const current = this.table.get(nodeId);
+    if (current?.nextHopId === nodeId && current.hopCount === 1) {
+      current.lastUpdated = Date.now();
+      return false;
+    }
+
+    this.table.set(nodeId, {
+      destId: nodeId,
+      nextHopId: nodeId,
+      hopCount: 1,
+      lastUpdated: Date.now(),
+    });
+    return true;
+  }
+
   // ─── Update ─────────────────────────────────────────────────────────────────
 
   /**
@@ -52,16 +68,7 @@ export class PacketRouter {
     let changed = false;
 
     // 1. Ensure we have a direct route to the neighbour (hopCount=1)
-    const existing = this.table.get(fromNodeId);
-    if (!existing || existing.hopCount > 1) {
-      this.table.set(fromNodeId, {
-        destId:      fromNodeId,
-        nextHopId:   fromNodeId,
-        hopCount:    1,
-        lastUpdated: Date.now(),
-      });
-      changed = true;
-    }
+    changed = this.addDirectPeer(fromNodeId) || changed;
 
     // 2. Merge their routes (Bellman-Ford)
     for (const entry of routes) {

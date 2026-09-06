@@ -22,6 +22,13 @@ const registry = new Map<string, RegistryEntry>();
  * it is overwritten with the new entry.
  */
 export function upsert(socketId: string, entry: RegistryEntry): void {
+  // A reconnect gets a new Socket.IO id. Keep exactly one registry entry per
+  // persistent Mirage node so peers do not try to negotiate with a stale tab.
+  for (const [existingSocketId, existingEntry] of registry.entries()) {
+    if (existingSocketId !== socketId && existingEntry.nodeId === entry.nodeId) {
+      registry.delete(existingSocketId);
+    }
+  }
   registry.set(socketId, entry);
 }
 

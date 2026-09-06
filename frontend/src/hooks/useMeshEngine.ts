@@ -13,12 +13,12 @@
  * so screens don't need to import engine internals directly.
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { meshEngine } from '../engine/MeshEngine';
 import { signalingClient } from '../lib/signaling';
 import { getOrCreateNodeId, getOrCreateDisplayName } from '../lib/nodeId';
-import { SIGNALING_URL } from '../lib/constants';
+import { IS_SIGNALING_URL_CONFIGURED, SIGNALING_URL } from '../lib/constants';
 import { useMeshStore } from '../stores/useMeshStore';
 import { usePacketStore, UIMessage, PacketTraceEntry } from '../stores/usePacketStore';
 import { useEmergencyStore } from '../stores/useEmergencyStore';
@@ -27,18 +27,15 @@ import { PacketPriority, EmergencyPayload } from '../engine/types';
 let _initialized = false;
 
 export function useMeshEngine() {
-  const initializedRef = useRef(false);
-
   const { setLocalIdentity, addOrUpdatePeer, removePeer, setRoutingTable, setConnectionStatus } =
     useMeshStore();
-  const { addDeliveredMessage, addOutgoingMessage, enqueuePacket, addTraceEntry } =
+  const { addDeliveredMessage, addOutgoingMessage, enqueuePacket, dequeuePacket, addTraceEntry } =
     usePacketStore();
   const { addEmergency } = useEmergencyStore();
 
   useEffect(() => {
     if (_initialized) return;
     _initialized = true;
-    initializedRef.current = true;
 
     let localNodeId = '';
     let localDisplayName = '';
@@ -100,6 +97,10 @@ export function useMeshEngine() {
           enqueuePacket(entry);
         });
 
+        meshEngine.on('packet-dequeued', (entry) => {
+          dequeuePacket(entry.id);
+        });
+
         meshEngine.on('packet-forwarded', (packet) => {
           addTraceEntry({
             packetId: packet.packetId,
@@ -116,23 +117,26 @@ export function useMeshEngine() {
           addEmergency(marker);
         });
 
-        // ── Connect signaling client ──────────────────────────────────────────
+        // Initialise every incoming signaling handler before joining. The
+        // server emits peer-list immediately after join, so a fixed timeout here
+        // loses peers and offers on slower LANs.
+        await meshEngine.initialize(localNodeId, localDisplayName, signalingClient);
 
+        signalingClient.onConnect = () => {
+          signalingClient.join(localNodeId, localDisplayName);
+          setConnectionStatus('connected');
+          console.info(`[Mirage] Signaling connected: ${SIGNALING_URL}`);
+        };
+        signalingClient.onDisconnect = () => setConnectionStatus('disconnected');
         signalingClient.onError = () => setConnectionStatus('disconnected');
 
-        signalingClient.connect(SIGNALING_URL);
+        if (!IS_SIGNALING_URL_CONFIGURED) {
+          console.warn(
+            '[Mirage] EXPO_PUBLIC_SIGNALING_URL is not configured; using localhost for single-device development.'
+          );
+        }
 
-        // Wait a tick for socket connect event, then join
-        setTimeout(async () => {
-          try {
-            signalingClient.join(localNodeId, localDisplayName);
-            setConnectionStatus('connected');
-            await meshEngine.initialize(localNodeId, localDisplayName, signalingClient);
-          } catch (e) {
-            console.warn('[useMeshEngine] init error:', e);
-            setConnectionStatus('disconnected');
-          }
-        }, 800);
+        signalingClient.connect(SIGNALING_URL);
       } catch (e) {
         console.warn('[useMeshEngine] setup error:', e);
         setConnectionStatus('disconnected');

@@ -182,3 +182,17 @@ STATUS values:
 ---
 
 *This file is owned by the entire team. Last rule: if you read it and it's out of date, update it.*
+
+---
+
+## 2026-09-07 — Expo Mesh Reliability Update
+
+| Timestamp | Developer | Status | Module | Description |
+|---|---|---|---|---|
+| 2026-09-07T03:09 | Codex | DONE | `frontend/src/hooks/useMeshEngine.ts` | Removed the fixed join timeout; initializes mesh handlers before connection, joins from Socket.IO `onConnect`, re-registers after reconnect, and reports the configured Expo signaling URL. |
+| 2026-09-07T03:09 | Codex | DONE | `frontend/src/engine/` | Fixed duplicate-cache forwarding semantics, HELLO reply loop, emergency relay propagation, route announcements, direct route creation, and SCF queue draining. |
+| 2026-09-07T03:09 | Codex | DONE | `frontend/src/engine/SCFQueue.ts` | Added AsyncStorage-backed SCF queue restoration, priority-specific expiry, and persistence after queue changes. |
+| 2026-09-07T03:09 | Codex | DONE | `frontend/` | Added `react-native-webrtc` for native development builds; Expo Web remains supported and Expo Go is not a native WebRTC runtime. |
+| 2026-09-07T03:09 | Codex | DONE | `backend/` | Corrected the server banner to `EXPO_PUBLIC_SIGNALING_URL`, added `LAN_IP` override support, preferred physical adapters, deduplicated reconnecting node IDs, and constrained SDP event types. |
+| 2026-09-07T03:09 | Codex | DONE | `docs/`, `README.md` | Replaced stale Next.js/React Flow/IndexedDB planning material with the current Expo / React Native architecture, protocol, LAN demo, runbook, risks, and roadmap. |
+| 2026-09-07T03:09 | Codex | DONE | Verification | `backend` TypeScript check passed; `frontend` TypeScript check passed; Expo Web export passed; backend `/api/health` and `/api/nodes` smoke tests passed on port 3003. |

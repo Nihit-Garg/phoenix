@@ -73,7 +73,8 @@ httpServer.listen(PORT, () => {
   logger.info('server', `  LAN IP:   ${lanIp}`);
   logger.info('server', '───────────────────────────────────────────');
   logger.info('server', '  Copy the LAN URL into your frontend .env:');
-  logger.info('server', `  NEXT_PUBLIC_SIGNALING_URL=${serverUrl}`);
+  logger.info('server', `  EXPO_PUBLIC_SIGNALING_URL=${serverUrl}`);
+  logger.info('server', '  Set LAN_IP in backend/.env if this is not your Wi-Fi adapter IP.');
   logger.info('server', '═══════════════════════════════════════════');
 });
 

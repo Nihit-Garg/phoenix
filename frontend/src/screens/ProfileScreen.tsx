@@ -13,6 +13,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
+import { SIGNALING_URL } from '../lib/constants';
+import { useMeshStore } from '../stores/useMeshStore';
+import { usePacketStore } from '../stores/usePacketStore';
 
 interface ProfileScreenProps {
   onAddressChange?: (newAddress: string) => void;
@@ -23,6 +26,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [autoRelayEnabled, setAutoRelayEnabled] = useState(true);
   const [highPriorityVibrate, setHighPriorityVibrate] = useState(true);
+  const { displayName, localNodeId, peers, connectionStatus } = useMeshStore();
+  const { scfQueue } = usePacketStore();
 
   const handleSaveAddress = () => {
     setIsEditingAddress(false);
@@ -47,10 +52,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             <View style={styles.avatar}>
               <Ionicons name="person" size={38} color={COLORS.textWhite} />
             </View>
-            <Text style={styles.name}>Anshul Gupta</Text>
+            <Text style={styles.name}>{displayName || 'Loading identity…'}</Text>
             <View style={styles.nodeIdBadge}>
               <Ionicons name="hardware-chip-outline" size={13} color={COLORS.meshBlue} />
-              <Text style={styles.nodeIdText}>Node ID: node-a3f2c891</Text>
+              <Text style={styles.nodeIdText}>Node ID: {localNodeId || 'Loading…'}</Text>
             </View>
           </View>
 
@@ -108,22 +113,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>Signaling Server</Text>
-              <Text style={styles.statusValueOnline}>Connected (:3001)</Text>
+              <Text style={connectionStatus === 'connected' ? styles.statusValueOnline : styles.statusValue}>
+                {connectionStatus === 'connected' ? `Connected (${SIGNALING_URL})` : connectionStatus}
+              </Text>
             </View>
 
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>WebRTC DataChannels</Text>
-              <Text style={styles.statusValue}>3 Active Peers</Text>
+              <Text style={styles.statusValue}>{peers.size} Active Peer{peers.size === 1 ? '' : 's'}</Text>
             </View>
 
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>Store-Carry-Forward Buffer</Text>
-              <Text style={styles.statusValue}>0 Queued Packets</Text>
+              <Text style={styles.statusValue}>{scfQueue.length} Queued Packet{scfQueue.length === 1 ? '' : 's'}</Text>
             </View>
 
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>Duplicate Cache</Text>
-              <Text style={styles.statusValue}>42 Packets Seen</Text>
+              <Text style={styles.statusValue}>Session-only duplicate cache</Text>
             </View>
           </View>
 

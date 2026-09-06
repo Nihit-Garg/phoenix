@@ -9,7 +9,7 @@ import {
   MiragePacket, MiragePacketType, PacketPriority,
   DataPayload, HelloPayload, HeartbeatPayload, HeartbeatAckPayload,
   RouteUpdatePayload, EmergencyPayload, LeavePayload,
-  RoutingEntry, BROADCAST_ADDRESS, DEFAULT_TTL, PROTOCOL_VERSION,
+  RoutingEntry, BROADCAST_ADDRESS, DEFAULT_TTL, EMERGENCY_TTL, PROTOCOL_VERSION,
 } from './types';
 
 // Simple ID generator (no crypto.randomUUID needed)
@@ -74,7 +74,7 @@ export const PacketBuilder = {
 
   emergency(originId: string, text: string, severity: EmergencyPayload['severity']): MiragePacket {
     const payload: EmergencyPayload = { text, severity };
-    return base(originId, BROADCAST_ADDRESS, 'EMERGENCY', 'EMERGENCY', payload);
+    return base(originId, BROADCAST_ADDRESS, 'EMERGENCY', 'EMERGENCY', payload, EMERGENCY_TTL);
   },
 
   leave(originId: string): MiragePacket {

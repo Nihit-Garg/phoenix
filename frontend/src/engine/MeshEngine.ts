@@ -47,6 +47,7 @@ interface MeshEngineEvents {
   'packet-received':   (packet: MiragePacket)      => void;
   'packet-forwarded':  (packet: MiragePacket)      => void;
   'packet-queued':     (entry: QueueEntry)         => void;
+  'packet-dequeued':   (entry: QueueEntry)         => void;
   'packet-delivered':  (packet: MiragePacket)      => void;
   'route-updated':     (table: RoutingEntry[])     => void;
   'emergency':         (marker: EmergencyMarker)   => void;
@@ -79,7 +80,13 @@ class MeshEngineClass {
     this.localNodeId = localNodeId;
     this.displayName = displayName;
 
+    if (!this.rtc.isSupported()) {
+      throw new Error('WebRTC is not available on this platform.');
+    }
+
     this.router.init(localNodeId);
+    await this.scfQueue.hydrate();
+    for (const entry of this.scfQueue.getAll()) this.emit('packet-queued', entry);
 
     // Wire RTCManager
     this.rtc.init({
@@ -118,7 +125,6 @@ class MeshEngineClass {
     this.rtc.destroy();
     this.router.clear();
     this.cache.clear();
-    this.scfQueue.clear();
     this.peers.clear();
   }
 
@@ -126,12 +132,17 @@ class MeshEngineClass {
 
   sendPacket(destId: string, text: string, priority: PacketPriority = 'NORMAL'): void {
     const packet = PacketBuilder.data(this.localNodeId, destId, text, priority);
-    this._routeAndSend(packet);
+    if (this.cache.has(packet.packetId)) return;
+    this.cache.add(packet.packetId);
+    this._routeAndSend(packet, false);
   }
 
   sendEmergency(text: string, severity: EmergencyPayload['severity']): void {
     const packet = PacketBuilder.emergency(this.localNodeId, text, severity);
-    this._broadcastPacket(packet);
+    if (this.cache.has(packet.packetId)) return;
+    this.cache.add(packet.packetId);
+    this.emit('emergency', this._toEmergencyMarker(packet));
+    this._broadcastPacket(packet, false);
   }
 
   // ─── Event emitter ───────────────────────────────────────────────────────────
@@ -153,11 +164,9 @@ class MeshEngineClass {
 
   // ─── Routing ─────────────────────────────────────────────────────────────────
 
-  private _routeAndSend(packet: MiragePacket): void {
-    if (this.cache.isDuplicate(packet.packetId)) return;
-
+  private _routeAndSend(packet: MiragePacket, isForwarding: boolean): void {
     if (packet.destId === BROADCAST_ADDRESS) {
-      this._broadcastPacket(packet);
+      this._broadcastPacket(packet, isForwarding);
       return;
     }
 
@@ -168,20 +177,25 @@ class MeshEngineClass {
       return;
     }
 
-    const fwd = PacketBuilder.forwardCopy(packet, this.localNodeId);
-    this._sendViaDC(route.nextHopId, fwd);
-    this.emit('packet-forwarded', fwd);
+    if (isForwarding && packet.ttl <= 1) return;
+    const outbound = isForwarding ? PacketBuilder.forwardCopy(packet, this.localNodeId) : packet;
+    if (!this._sendViaDC(route.nextHopId, outbound)) {
+      const entry = this.scfQueue.enqueue(packet);
+      this.emit('packet-queued', entry);
+      return;
+    }
+    this.emit('packet-forwarded', outbound);
   }
 
-  private _broadcastPacket(packet: MiragePacket): void {
-    if (this.cache.isDuplicate(packet.packetId)) return;
-    const fwd = PacketBuilder.forwardCopy(packet, this.localNodeId);
-    this.rtc.broadcast(JSON.stringify(fwd));
-    this.emit('packet-forwarded', fwd);
+  private _broadcastPacket(packet: MiragePacket, isForwarding: boolean, fromNodeId?: string): void {
+    if (isForwarding && packet.ttl <= 1) return;
+    const outbound = isForwarding ? PacketBuilder.forwardCopy(packet, this.localNodeId) : packet;
+    this.rtc.broadcast(JSON.stringify(outbound), fromNodeId);
+    this.emit('packet-forwarded', outbound);
   }
 
-  private _sendViaDC(destNodeId: string, packet: MiragePacket): void {
-    this.rtc.send(destNodeId, JSON.stringify(packet));
+  private _sendViaDC(destNodeId: string, packet: MiragePacket): boolean {
+    return this.rtc.send(destNodeId, JSON.stringify(packet));
   }
 
   // ─── Inbound packet processing ────────────────────────────────────────────────
@@ -214,7 +228,7 @@ class MeshEngineClass {
     }
     // Forward — TTL check
     if (packet.ttl <= 1) return;
-    this._routeAndSend(packet);
+    this._routeAndSend(packet, true);
   }
 
   private _handleHello(fromNodeId: string, packet: MiragePacket): void {
@@ -224,19 +238,15 @@ class MeshEngineClass {
 
     if (changed) {
       this.emit('route-updated', this.router.getTable());
-      // Drain SCF queue
-      const drained = this.scfQueue.drainRoutable((id) => this.router.hasRoute(id));
-      for (const entry of drained) {
-        this._routeAndSend(entry.packet);
-      }
+      this._drainRoutableQueue();
+      this._announceRoutes(fromNodeId);
     }
 
-    // Reply with our own routing table
-    const hello = PacketBuilder.hello(
-      this.localNodeId, fromNodeId,
-      this.displayName, this.router.getTable()
-    );
-    this._sendViaDC(fromNodeId, hello);
+    const peer = this.peers.get(fromNodeId);
+    if (peer && peer.displayName !== payload.displayName) {
+      peer.displayName = payload.displayName;
+      this.emit('peer-connected', { ...peer });
+    }
   }
 
   private _handleHeartbeat(fromNodeId: string, packet: MiragePacket): void {
@@ -258,16 +268,10 @@ class MeshEngineClass {
 
   private _handleEmergency(packet: MiragePacket): void {
     const payload = packet.payload as any;
-    const marker: EmergencyMarker = {
-      packetId:   packet.packetId,
-      originId:   packet.originId,
-      text:       payload.text,
-      severity:   payload.severity,
-      receivedAt: Date.now(),
-    };
-    this.emit('emergency', marker);
-    // Rebroadcast to all other peers
-    this._broadcastPacket(packet);
+    this.emit('emergency', this._toEmergencyMarker(packet));
+    // Rebroadcast to all other peers. The packet was already admitted to the
+    // duplicate cache by _handleRawMessage, so do not check it a second time.
+    this._broadcastPacket(packet, true, packet.senderId);
   }
 
   private _handleRouteUpdate(fromNodeId: string, packet: MiragePacket): void {
@@ -275,8 +279,8 @@ class MeshEngineClass {
     const changed = this.router.mergeRoutes(fromNodeId, payload.routes ?? []);
     if (changed) {
       this.emit('route-updated', this.router.getTable());
-      const drained = this.scfQueue.drainRoutable((id) => this.router.hasRoute(id));
-      for (const entry of drained) this._routeAndSend(entry.packet);
+      this._drainRoutableQueue();
+      this._announceRoutes(fromNodeId);
     }
   }
 
@@ -298,6 +302,7 @@ class MeshEngineClass {
     };
     this.peers.set(peer.nodeId, node);
     this.hbm.addPeer(peer.nodeId);
+    const routeChanged = this.router.addDirectPeer(peer.nodeId);
 
     // Send HELLO immediately on channel open
     const hello = PacketBuilder.hello(
@@ -307,6 +312,11 @@ class MeshEngineClass {
     this._sendViaDC(peer.nodeId, hello);
 
     this.emit('peer-connected', node);
+    if (routeChanged) {
+      this.emit('route-updated', this.router.getTable());
+      this._drainRoutableQueue();
+      this._announceRoutes();
+    }
   }
 
   private _handlePeerClose(nodeId: string): void {
@@ -314,18 +324,50 @@ class MeshEngineClass {
   }
 
   private _handleDeadPeer(nodeId: string): void {
+    const existed = this.peers.has(nodeId);
     this.peers.delete(nodeId);
     this.hbm.removePeer(nodeId);
 
     const changed = this.router.removePeer(nodeId);
     if (changed) this.emit('route-updated', this.router.getTable());
 
-    this.emit('peer-disconnected', nodeId);
+    if (existed) this.emit('peer-disconnected', nodeId);
   }
 
   private _updatePeerStatus(nodeId: string, status: MirageNode['status']): void {
     const peer = this.peers.get(nodeId);
-    if (peer) peer.status = status;
+    if (peer) {
+      peer.status = status;
+      this.emit('peer-connected', { ...peer });
+    }
+  }
+
+  private _announceRoutes(excludedNodeId?: string): void {
+    const routes = this.router.getTable();
+    for (const nodeId of this.rtc.getConnectedPeerIds()) {
+      if (nodeId === excludedNodeId) continue;
+      const update = PacketBuilder.routeUpdate(this.localNodeId, nodeId, routes);
+      this._sendViaDC(nodeId, update);
+    }
+  }
+
+  private _drainRoutableQueue(): void {
+    const drained = this.scfQueue.drainRoutable((id) => this.router.hasRoute(id));
+    for (const entry of drained) {
+      this.emit('packet-dequeued', entry);
+      this._routeAndSend(entry.packet, false);
+    }
+  }
+
+  private _toEmergencyMarker(packet: MiragePacket): EmergencyMarker {
+    const payload = packet.payload as EmergencyPayload;
+    return {
+      packetId: packet.packetId,
+      originId: packet.originId,
+      text: payload.text,
+      severity: payload.severity,
+      receivedAt: Date.now(),
+    };
   }
 }
 

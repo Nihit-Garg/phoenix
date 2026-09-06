@@ -4,12 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 
 interface MessageComposerProps {
-  onSend: (text: string, priority: 'NORMAL' | 'HIGH' | 'EMERGENCY') => void;
+  onSend: (text: string, priority: 'NORMAL' | 'HIGH') => void;
 }
 
 export const MessageComposer: React.FC<MessageComposerProps> = ({ onSend }) => {
   const [text, setText] = useState('');
-  const [priority, setPriority] = useState<'NORMAL' | 'EMERGENCY'>('NORMAL');
+  const [priority, setPriority] = useState<'NORMAL' | 'HIGH'>('NORMAL');
 
   const handleSend = () => {
     if (!text.trim()) return;
@@ -20,10 +20,10 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({ onSend }) => {
 
   return (
     <View style={styles.container}>
-      {priority === 'EMERGENCY' && (
+      {priority === 'HIGH' && (
         <View style={styles.priorityIndicator}>
           <Ionicons name="warning" size={13} color={COLORS.textWhite} />
-          <Text style={styles.priorityIndicatorText}>Emergency Priority Broadcast</Text>
+          <Text style={styles.priorityIndicatorText}>High-priority message</Text>
           <TouchableOpacity onPress={() => setPriority('NORMAL')}>
             <Ionicons name="close-circle" size={16} color={COLORS.textWhite} />
           </TouchableOpacity>
@@ -33,14 +33,14 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({ onSend }) => {
       <View style={styles.inputRow}>
         {/* Priority Toggle Button */}
         <TouchableOpacity
-          style={[styles.priorityBtn, priority === 'EMERGENCY' && styles.priorityBtnActive]}
-          onPress={() => setPriority(priority === 'NORMAL' ? 'EMERGENCY' : 'NORMAL')}
+          style={[styles.priorityBtn, priority === 'HIGH' && styles.priorityBtnActive]}
+          onPress={() => setPriority(priority === 'NORMAL' ? 'HIGH' : 'NORMAL')}
           activeOpacity={0.8}
         >
           <Ionicons
-            name={priority === 'EMERGENCY' ? 'warning' : 'shield-outline'}
+            name={priority === 'HIGH' ? 'warning' : 'shield-outline'}
             size={18}
-            color={priority === 'EMERGENCY' ? COLORS.primaryRed : COLORS.textSecondary}
+            color={priority === 'HIGH' ? COLORS.primaryRed : COLORS.textSecondary}
           />
         </TouchableOpacity>
 
