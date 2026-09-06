@@ -1,55 +1,69 @@
 /**
- * signaling/handlers/onIceCandidate.ts — handles the 'ice-candidate' event
+ * signaling/handlers/onIceCandidate.ts — handles the 'ice-candidate' Socket.IO event
  *
  * Triggered when: either peer emits 'ice-candidate' as trickle ICE fires locally.
+ * Unlike offer/answer, a missing target is SILENTLY DROPPED — ICE candidates
+ * are tolerant of loss and re-sending is not needed.
  *
- * 1. Validates payload (Zod: IceCandidatePayload).
- * 2. Silently drops if targetSocketId is not connected (ICE candidates can be lost).
- * 3. Forwards the ICE candidate to targetSocketId with sender metadata.
- *
- * Note: Unlike offer/answer, a missing target is silently dropped (not an error).
+ * Flow:
+ *   1. Validate payload via iceCandidateSchema
+ *   2. If invalid: emit 'signaling-error' INVALID_PAYLOAD to sender
+ *   3. Look up targetSocketId in registry
+ *   4. If not found: silently drop (no error emitted)
+ *   5. Forward ICE candidate to targetSocketId with sender metadata
  *
  * See: API_SPEC.md → ice-candidate event
  */
 
-import type { Server, Socket } from 'socket.io';
+import { Socket, Server } from 'socket.io';
 import * as registry from '../../registry/registry';
-import { iceCandidateSchema, emitSignalingError } from '../validation';
+import { iceCandidateSchema } from '../validation';
 import { logger } from '../../utils/logger';
 
 export function onIceCandidate(socket: Socket, io: Server) {
   return (payload: unknown): void => {
-    registry.updateActivity(socket.id);
-
+    // Step 1 — Validate payload
     const result = iceCandidateSchema.safeParse(payload);
-
     if (!result.success) {
-      emitSignalingError(socket, 'INVALID_PAYLOAD', 'Invalid ice-candidate payload', {
+      logger.warn('onIceCandidate', 'Invalid ice-candidate payload', {
+        socketId: socket.id,
         errors: result.error.flatten(),
       });
-      logger.warn('onIceCandidate', `Invalid ice-candidate payload from socket ${socket.id}`);
+      socket.emit('signaling-error', {
+        code: 'INVALID_PAYLOAD',
+        message: 'ice-candidate payload failed validation',
+        context: { errors: result.error.flatten() },
+      });
       return;
     }
 
     const { targetSocketId, candidate } = result.data;
 
-    // Silently drop if target is not connected — ICE is tolerant of lost candidates
-    const targetSocket = io.sockets.sockets.get(targetSocketId);
-    if (!targetSocket) {
-      logger.debug('onIceCandidate', `Target not found, silently dropping: ${targetSocketId}`);
+    // Step 3 — Look up target; silently drop if not found (Step 4)
+    const targetEntry = registry.get(targetSocketId);
+    if (!targetEntry) {
+      // Intentionally not logging at warn — this is expected when the peer
+      // has just disconnected during ICE negotiation.
+      logger.debug('onIceCandidate', 'Target not found — dropping candidate silently', {
+        fromSocketId: socket.id,
+        targetSocketId,
+      });
       return;
     }
 
+    // Step 5 — Forward to target with sender metadata
     const senderEntry = registry.get(socket.id);
-    const fromNodeId = senderEntry?.nodeId ?? 'unknown';
+    const fromNodeId = senderEntry?.nodeId ?? '';
 
-    // Forward the ICE candidate with sender metadata
-    targetSocket.emit('ice-candidate', {
+    io.to(targetSocketId).emit('ice-candidate', {
       fromSocketId: socket.id,
       fromNodeId,
       candidate,
     });
 
-    logger.debug('onIceCandidate', `Forwarded ICE candidate from ${fromNodeId} to ${targetSocketId}`);
+    logger.debug('onIceCandidate', `Forwarded ICE candidate`, {
+      from: socket.id,
+      to: targetSocketId,
+    });
   };
 }

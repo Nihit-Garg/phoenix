@@ -2,49 +2,54 @@
  * app.ts — Express application factory
  *
  * Creates and configures the Express app instance.
- * - Applies middleware: cors, express.json()
- * - Mounts route handlers:
- *     GET /api/health  → routes/health.ts
- *     GET /api/nodes   → routes/nodes.ts
- * - Exports the configured app and http.Server
+ * Does NOT start listening — that is done in server.ts.
  *
- * Does NOT start listening — that is done in server.ts
+ * Middleware applied:
+ *   - cors()         — allow all origins by default; restricted via CORS_ORIGINS env var
+ *   - express.json() — parse JSON request bodies
+ *
+ * Routes mounted:
+ *   GET /api/health  → routes/health.ts
+ *   GET /api/nodes   → routes/nodes.ts (GET /api/nodes and GET /api/nodes/:nodeId)
  *
  * See: API_SPEC.md → REST Endpoints
  */
 
-import express from 'express';
+import express, { Application } from 'express';
 import cors from 'cors';
-import http from 'http';
 import healthRouter from './routes/health';
 import nodesRouter from './routes/nodes';
 
-// ── Parse CORS origins from environment ──────────────────────────────────────
-const rawOrigins = process.env.CORS_ORIGINS ?? '*';
-const corsOrigins: string | string[] =
-  rawOrigins === '*' ? '*' : rawOrigins.split(',').map((o) => o.trim());
+/**
+ * createApp — factory function that builds and returns the Express app.
+ *
+ * @returns The configured Express Application instance.
+ */
+export function createApp(): Application {
+  const app = express();
 
-// ── Create Express app ────────────────────────────────────────────────────────
-export const app = express();
+  // --- Middleware ---
 
-app.use(
-  cors({
-    origin: corsOrigins,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    credentials: false,
-  }),
-);
+  // CORS — allow origins from CORS_ORIGINS env var (comma-separated), or all origins if not set
+  const rawOrigins = process.env.CORS_ORIGINS;
+  const corsOrigins: string | string[] = rawOrigins
+    ? rawOrigins.split(',').map((o) => o.trim())
+    : '*';
 
-app.use(express.json());
+  app.use(
+    cors({
+      origin: corsOrigins,
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type'],
+    })
+  );
 
-// ── Mount API routes ──────────────────────────────────────────────────────────
-app.use('/api', healthRouter);
-app.use('/api', nodesRouter);
+  // JSON body parser
+  app.use(express.json());
 
-// ── 404 fallback ──────────────────────────────────────────────────────────────
-app.use((_req, res) => {
-  res.status(404).json({ error: 'NOT_FOUND', message: 'Endpoint not found' });
-});
+  // --- Routes ---
+  app.use('/api/health', healthRouter);
+  app.use('/api/nodes', nodesRouter);
 
-// ── HTTP server (for Socket.IO attachment) ────────────────────────────────────
-export const httpServer = http.createServer(app);
+  return app;
+}

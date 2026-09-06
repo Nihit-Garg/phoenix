@@ -1,30 +1,43 @@
 /**
  * signaling/validation.ts — Zod schemas for all Socket.IO event payloads
  *
- * Exports one Zod schema per incoming event payload.
- * Used in every handler to validate before processing.
+ * Each schema validates one incoming client event before it is processed.
+ * Usage pattern in handlers:
+ *   const result = joinSchema.safeParse(payload);
+ *   if (!result.success) { emit 'signaling-error'; return; }
+ *   const data = result.data;
  *
  * See: API_SPEC.md → all client-emitted events for payload shapes
  */
 
 import { z } from 'zod';
 
-// ── join ─────────────────────────────────────────────────────────────────────
-
-/** Validates JoinPayload — emitted when a client first connects. */
+/**
+ * joinSchema — validates JoinPayload
+ *
+ * Client emits: { nodeId, displayName, protocolVersion }
+ */
 export const joinSchema = z.object({
-  nodeId: z.string().min(1, 'nodeId is required'),
-  displayName: z.string().min(1).max(32, 'displayName must be 32 characters or fewer'),
-  protocolVersion: z.string().min(1, 'protocolVersion is required'),
+  /** Persistent node ID — must be non-empty. */
+  nodeId: z.string().min(1, 'nodeId must not be empty'),
+  /** User-chosen display name — max 32 characters per MIRAGE_CONSTANTS. */
+  displayName: z.string().min(1).max(32),
+  /** Protocol version string, e.g. "1.0". */
+  protocolVersion: z.string().min(1),
 });
 
 export type JoinPayload = z.infer<typeof joinSchema>;
 
-// ── offer ────────────────────────────────────────────────────────────────────
-
-/** Validates OfferPayload — SDP offer forwarded to the target peer. */
+/**
+ * offerSchema — validates OfferPayload
+ *
+ * Client emits: { targetSocketId, sdp }
+ * sdp must at minimum have 'type' and 'sdp' fields (RTCSessionDescriptionInit shape).
+ */
 export const offerSchema = z.object({
-  targetSocketId: z.string().min(1, 'targetSocketId is required'),
+  /** Socket.IO ID of the target peer to forward the offer to. */
+  targetSocketId: z.string().min(1),
+  /** SDP offer object (RTCSessionDescriptionInit). */
   sdp: z.object({
     type: z.enum(['offer', 'answer', 'pranswer', 'rollback']),
     sdp: z.string().optional(),
@@ -33,11 +46,15 @@ export const offerSchema = z.object({
 
 export type OfferPayload = z.infer<typeof offerSchema>;
 
-// ── answer ───────────────────────────────────────────────────────────────────
-
-/** Validates AnswerPayload — SDP answer forwarded back to the initiating peer. */
+/**
+ * answerSchema — validates AnswerPayload
+ *
+ * Identical structure to offerSchema; separate for clarity.
+ */
 export const answerSchema = z.object({
-  targetSocketId: z.string().min(1, 'targetSocketId is required'),
+  /** Socket.IO ID of the initiating peer to forward the answer to. */
+  targetSocketId: z.string().min(1),
+  /** SDP answer object (RTCSessionDescriptionInit). */
   sdp: z.object({
     type: z.enum(['offer', 'answer', 'pranswer', 'rollback']),
     sdp: z.string().optional(),
@@ -46,11 +63,15 @@ export const answerSchema = z.object({
 
 export type AnswerPayload = z.infer<typeof answerSchema>;
 
-// ── ice-candidate ─────────────────────────────────────────────────────────────
-
-/** Validates IceCandidatePayload — a single ICE candidate for trickle ICE. */
+/**
+ * iceCandidateSchema — validates IceCandidatePayload
+ *
+ * client emits: { targetSocketId, candidate }
+ */
 export const iceCandidateSchema = z.object({
-  targetSocketId: z.string().min(1, 'targetSocketId is required'),
+  /** Socket.IO ID of the target peer. */
+  targetSocketId: z.string().min(1),
+  /** RTCIceCandidateInit shape. */
   candidate: z.object({
     candidate: z.string().optional(),
     sdpMid: z.string().nullable().optional(),
@@ -61,34 +82,17 @@ export const iceCandidateSchema = z.object({
 
 export type IceCandidatePayload = z.infer<typeof iceCandidateSchema>;
 
-// ── leave ────────────────────────────────────────────────────────────────────
-
-/** Validates LeavePayload — sent by the client on graceful disconnect. */
+/**
+ * leaveSchema — validates LeavePayload (all fields optional for robustness)
+ *
+ * Client emits: { nodeId?, reason? }
+ * Sent on beforeunload — we can't guarantee a full payload, so be lenient.
+ */
 export const leaveSchema = z.object({
+  /** Persistent node ID (optional — we can look it up from registry). */
   nodeId: z.string().optional(),
+  /** Human-readable reason string (e.g., "user_closed_tab"). */
   reason: z.string().optional(),
 });
 
 export type LeavePayload = z.infer<typeof leaveSchema>;
-
-// ── Shared error emitter helper ───────────────────────────────────────────────
-
-import type { Socket } from 'socket.io';
-
-export type SignalingErrorCode =
-  | 'TARGET_NOT_FOUND'
-  | 'INVALID_PAYLOAD'
-  | 'RATE_LIMITED'
-  | 'PROTOCOL_VERSION';
-
-/**
- * emitSignalingError — emit a 'signaling-error' event back to the sender.
- */
-export function emitSignalingError(
-  socket: Socket,
-  code: SignalingErrorCode,
-  message: string,
-  context?: Record<string, unknown>,
-): void {
-  socket.emit('signaling-error', { code, message, context });
-}

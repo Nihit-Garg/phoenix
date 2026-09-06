@@ -4,49 +4,57 @@
  * Triggered when: a socket disconnects for ANY reason — graceful leave,
  * browser crash, network drop, or timeout. This is the safety net.
  *
- * 1. Checks if the socket still exists in the registry.
- *    (If 'leave' was already processed, it will have been removed — skip.)
- * 2. If still in registry: removes it.
- * 3. Broadcasts 'peer-left' to all remaining sockets with reason 'socket-disconnect'.
- * 4. Logs the disconnection with reason.
+ * This handler MUST be idempotent — if onLeave already ran and cleaned up
+ * the registry, this handler will find nothing and exit cleanly.
  *
- * This handler MUST be idempotent — it may be called after onLeave has
- * already cleaned up.
+ * Flow:
+ *   1. Check if socket is still in the registry
+ *   2. If NOT in registry: leave already handled it → skip
+ *   3. If IN registry: remove it and broadcast 'peer-left' with reason 'socket-disconnect'
+ *   4. Log the disconnection with Socket.IO-provided reason string
  *
  * See: API_SPEC.md → peer-left event
  */
 
-import type { Server, Socket } from 'socket.io';
+import { Socket, Server } from 'socket.io';
 import * as registry from '../../registry/registry';
 import { logger } from '../../utils/logger';
 
 export function onDisconnect(socket: Socket, io: Server) {
   return (reason: string): void => {
-    // Idempotent check: if already cleaned up by onLeave, entry will be undefined
-    const entry = registry.remove(socket.id);
+    // Step 1 — Check if socket is still in registry
+    const entry = registry.get(socket.id);
 
     if (!entry) {
-      // Already removed by onLeave — nothing to do
-      logger.debug('onDisconnect', `Socket ${socket.id} already cleaned up; skipping`, { reason });
+      // Step 2 — Already cleaned up by onLeave — nothing to do
+      logger.debug('onDisconnect', 'Socket already removed from registry (onLeave ran first)', {
+        socketId: socket.id,
+        reason,
+      });
       return;
     }
 
-    // Broadcast peer-left to all remaining connected sockets
-    // Note: socket.broadcast includes everyone except the disconnected socket
+    // Step 3 — Remove from registry
+    registry.remove(socket.id);
+
+    // Broadcast 'peer-left' with 'socket-disconnect' reason to all remaining peers
+    // Note: socket.broadcast won't work after disconnect — use io.emit and exclude manually
+    // Since the socket is disconnected, socket.broadcast IS safe here per Socket.IO docs
     socket.broadcast.emit('peer-left', {
       nodeId: entry.nodeId,
       socketId: socket.id,
-      reason: 'socket-disconnect',
+      reason: 'socket-disconnect' as const,
     });
 
+    // Step 4 — Log
     logger.info(
       'onDisconnect',
-      `Node ${entry.nodeId} (${entry.displayName}) disconnected unexpectedly`,
+      `Node disconnected (${reason}): ${entry.nodeId} (${entry.displayName})`,
       {
         socketId: socket.id,
-        socketIOReason: reason,
+        socketIoReason: reason,
         remainingPeers: registry.size(),
-      },
+      }
     );
   };
 }

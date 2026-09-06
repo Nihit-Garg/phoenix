@@ -2,45 +2,52 @@
  * signaling/handlers/onLeave.ts — handles the 'leave' event (graceful disconnect)
  *
  * Triggered when: a client emits 'leave' before closing the tab/window.
+ * This is the "happy path" disconnection — the client is well-behaved.
  *
- * 1. Validates payload (optional; may be empty or { nodeId, reason }).
- * 2. Removes the socket from the registry.
- * 3. Broadcasts 'peer-left' to all OTHER connected sockets with reason 'graceful'.
- * 4. Logs the departure.
+ * Flow:
+ *   1. Validate payload (lenient — fields are optional)
+ *   2. Remove socket from registry
+ *   3. Broadcast 'peer-left' to ALL other connected sockets with reason 'graceful'
+ *   4. Log the departure
  *
- * Note: onDisconnect.ts handles the case where 'leave' is NOT sent (crash/timeout).
- * Both paths emit 'peer-left' with the appropriate reason.
+ * Note: onDisconnect.ts is the safety net for crash/timeout scenarios.
+ * Both paths MUST emit 'peer-left' with the appropriate reason string.
  *
  * See: API_SPEC.md → leave event and peer-left event
  */
 
-import type { Server, Socket } from 'socket.io';
+import { Socket, Server } from 'socket.io';
 import * as registry from '../../registry/registry';
 import { leaveSchema } from '../validation';
 import { logger } from '../../utils/logger';
 
 export function onLeave(socket: Socket, io: Server) {
   return (payload: unknown): void => {
-    // Payload is optional — parse gracefully
+    // Step 1 — Validate payload (optional fields, best-effort)
     const result = leaveSchema.safeParse(payload ?? {});
-    const reason = result.success ? (result.data.reason ?? 'user_closed_tab') : 'user_closed_tab';
+    // Even if validation fails, proceed with cleanup — leave is best-effort
+    const reason = result.success ? (result.data.reason ?? 'user_closed') : 'unknown';
 
+    // Step 2 — Remove from registry
     const entry = registry.remove(socket.id);
 
     if (!entry) {
-      // Already removed (e.g., duplicate leave event), nothing to do
-      logger.debug('onLeave', `Socket ${socket.id} not in registry; skipping`);
+      // Already removed (e.g., duplicate leave event) — nothing to do
+      logger.debug('onLeave', 'Socket not in registry (already cleaned up)', {
+        socketId: socket.id,
+      });
       return;
     }
 
-    // Broadcast peer-left to all remaining sockets
+    // Step 3 — Broadcast 'peer-left' to all OTHER sockets
     socket.broadcast.emit('peer-left', {
       nodeId: entry.nodeId,
       socketId: socket.id,
-      reason: 'graceful',
+      reason: 'graceful' as const,
     });
 
-    logger.info('onLeave', `Node ${entry.nodeId} (${entry.displayName}) left gracefully`, {
+    // Step 4 — Log
+    logger.info('onLeave', `Node left gracefully: ${entry.nodeId} (${entry.displayName})`, {
       socketId: socket.id,
       reason,
       remainingPeers: registry.size(),

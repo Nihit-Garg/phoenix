@@ -1,34 +1,38 @@
 /**
- * signaling/handlers/onJoin.ts — handles the 'join' event
+ * signaling/handlers/onJoin.ts — handles the 'join' Socket.IO event
  *
  * Triggered when: a client emits socket.emit('join', JoinPayload)
  *
- * 1. Validates payload via Zod schema.
- * 2. If invalid: emits 'signaling-error' with code 'INVALID_PAYLOAD'.
- * 3. If valid:
- *    a. Upserts the client into the registry.
- *    b. Emits 'peer-list' to the joining socket with all OTHER connected nodes.
- *    c. Broadcasts 'new-peer' to all OTHER sockets.
- * 4. Logs the join event.
+ * Flow:
+ *   1. Validate payload via joinSchema
+ *   2. If invalid: emit 'signaling-error' INVALID_PAYLOAD back to sender
+ *   3. If valid:
+ *      a. Upsert client into the registry
+ *      b. Emit 'peer-list' to the joining socket (all OTHER connected peers)
+ *      c. Broadcast 'new-peer' to all OTHER sockets
+ *   4. Log the join
  *
  * See: API_SPEC.md → join event
  */
 
-import type { Server, Socket } from 'socket.io';
+import { Socket, Server } from 'socket.io';
 import * as registry from '../../registry/registry';
-import { joinSchema, emitSignalingError } from '../validation';
+import { joinSchema } from '../validation';
 import { logger } from '../../utils/logger';
 
 export function onJoin(socket: Socket, io: Server) {
   return (payload: unknown): void => {
+    // Step 1 — Validate payload
     const result = joinSchema.safeParse(payload);
-
     if (!result.success) {
-      emitSignalingError(socket, 'INVALID_PAYLOAD', 'Invalid join payload', {
+      logger.warn('onJoin', 'Invalid join payload', {
+        socketId: socket.id,
         errors: result.error.flatten(),
       });
-      logger.warn('onJoin', `Invalid join payload from socket ${socket.id}`, {
-        errors: result.error.flatten(),
+      socket.emit('signaling-error', {
+        code: 'INVALID_PAYLOAD',
+        message: 'join payload failed validation',
+        context: { errors: result.error.flatten() },
       });
       return;
     }
@@ -36,7 +40,7 @@ export function onJoin(socket: Socket, io: Server) {
     const { nodeId, displayName, protocolVersion } = result.data;
     const now = Date.now();
 
-    // Upsert into registry — handles re-connects gracefully
+    // Step 3a — Upsert into registry
     registry.upsert(socket.id, {
       nodeId,
       socketId: socket.id,
@@ -46,21 +50,24 @@ export function onJoin(socket: Socket, io: Server) {
       lastActivityAt: now,
     });
 
-    // Build peer-list for the joining client (excludes self)
-    const peers = registry.getAllExcept(socket.id).map(registry.toNodeSummary);
+    // Step 3b — Emit 'peer-list' to the joining socket (all OTHERS)
+    const otherPeers = registry
+      .getAllExcept(socket.id)
+      .map(registry.toNodeSummary);
 
-    // Emit peer-list to the joining socket only
-    socket.emit('peer-list', { peers });
+    socket.emit('peer-list', { peers: otherPeers });
 
-    // Broadcast new-peer to all OTHER currently connected sockets
-    socket.broadcast.emit('new-peer', {
-      peer: registry.toNodeSummary(registry.get(socket.id)!),
-    });
+    // Step 3c — Broadcast 'new-peer' to ALL other connected sockets
+    const newPeerSummary = registry.toNodeSummary(
+      registry.get(socket.id)!
+    );
+    socket.broadcast.emit('new-peer', { peer: newPeerSummary });
 
-    logger.info('onJoin', `Node ${nodeId} (${displayName}) joined`, {
+    // Step 4 — Log
+    logger.info('onJoin', `Node joined: ${nodeId} (${displayName})`, {
       socketId: socket.id,
       protocolVersion,
-      peerCount: registry.size(),
+      totalPeers: registry.size(),
     });
   };
 }

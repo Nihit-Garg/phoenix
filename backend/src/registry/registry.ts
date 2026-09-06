@@ -4,25 +4,30 @@
  * This is the ONLY stateful module on the server.
  * It holds a Map<socketId, RegistryEntry> of all currently-connected peers.
  *
- * Implemented as a module-level singleton Map — no class needed.
+ * Implementation: module-level singleton Map (no class needed).
+ *
+ * See: DATA_MODELS.md → SignalingModels
+ * See: API_SPEC.md → GET /api/nodes
  */
 
-import type { RegistryEntry, NodeSummary } from './registry.types';
+import { RegistryEntry, NodeSummary } from './registry.types';
 
-// ── Singleton registry state ─────────────────────────────────────────────────
+/** Singleton in-memory peer registry. */
 const registry = new Map<string, RegistryEntry>();
 
-// ── Public API ───────────────────────────────────────────────────────────────
-
 /**
- * upsert — Add or update a registry entry for the given socketId.
+ * upsert — add or update a registry entry for the given socketId.
+ *
+ * If an entry already exists for this socketId (e.g., reconnect scenario),
+ * it is overwritten with the new entry.
  */
 export function upsert(socketId: string, entry: RegistryEntry): void {
   registry.set(socketId, entry);
 }
 
 /**
- * remove — Remove and return the entry for the given socketId.
+ * remove — remove and return the entry for the given socketId.
+ *
  * Returns undefined if not found (idempotent).
  */
 export function remove(socketId: string): RegistryEntry | undefined {
@@ -32,47 +37,59 @@ export function remove(socketId: string): RegistryEntry | undefined {
 }
 
 /**
- * get — Return the entry for the given socketId, or undefined.
+ * get — return the entry for the given socketId.
+ *
+ * Returns undefined if not found.
  */
 export function get(socketId: string): RegistryEntry | undefined {
   return registry.get(socketId);
 }
 
 /**
- * getByNodeId — Look up a peer by their persistent nodeId (not socketId).
- * Linear scan — acceptable for the small peer counts in the MVP.
+ * getByNodeId — look up a peer by their persistent nodeId (not socketId).
+ *
+ * Iterates all entries; O(n) but acceptable given small peer counts.
  */
 export function getByNodeId(nodeId: string): RegistryEntry | undefined {
   for (const entry of registry.values()) {
-    if (entry.nodeId === nodeId) return entry;
+    if (entry.nodeId === nodeId) {
+      return entry;
+    }
   }
   return undefined;
 }
 
 /**
- * getAll — Return all current entries as an array.
+ * getAll — return all current entries as an array.
  */
 export function getAll(): RegistryEntry[] {
   return Array.from(registry.values());
 }
 
 /**
- * getAllExcept — Return all entries except the one with the given socketId.
- * Used to build the 'peer-list' response for a newly-joined client.
+ * getAllExcept — return all entries except the one with the given socketId.
+ *
+ * Used to build the 'peer-list' response for a newly-joined client —
+ * they should receive info about all OTHER peers, not themselves.
  */
 export function getAllExcept(socketId: string): RegistryEntry[] {
-  return Array.from(registry.values()).filter((e) => e.socketId !== socketId);
+  return Array.from(registry.values()).filter(
+    (entry) => entry.socketId !== socketId
+  );
 }
 
 /**
- * size — Return the number of currently-connected peers.
+ * size — return the number of currently-connected peers.
  */
 export function size(): number {
   return registry.size;
 }
 
 /**
- * toNodeSummary — Convert a full RegistryEntry to the public NodeSummary shape.
+ * toNodeSummary — convert a full RegistryEntry to the public NodeSummary shape.
+ *
+ * Strips internal fields (lastActivityAt, protocolVersion) before returning
+ * the public-facing summary used in REST and Socket.IO events.
  */
 export function toNodeSummary(entry: RegistryEntry): NodeSummary {
   return {
@@ -81,15 +98,4 @@ export function toNodeSummary(entry: RegistryEntry): NodeSummary {
     displayName: entry.displayName,
     connectedAt: entry.connectedAt,
   };
-}
-
-/**
- * updateActivity — Touch lastActivityAt for the given socketId.
- * Called on every event received from the socket to keep the timestamp fresh.
- */
-export function updateActivity(socketId: string): void {
-  const entry = registry.get(socketId);
-  if (entry) {
-    entry.lastActivityAt = Date.now();
-  }
 }
