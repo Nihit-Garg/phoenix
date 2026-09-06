@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, SafeAreaView, Platform } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { COLORS } from './src/theme/colors';
@@ -9,62 +9,82 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { MessagesListScreen } from './src/screens/MessagesListScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { useMeshEngine } from './src/hooks/useMeshEngine';
 
-export default function App() {
+/**
+ * App root.
+ *
+ * useMeshEngine() is called here at the top level so the engine
+ * initializes once and its events flow into Zustand stores for all screens.
+ */
+function AppInner() {
   const [activeScreen, setActiveScreen] = useState<ScreenType>('home');
-  const [selectedPeer, setSelectedPeer] = useState<string>('Anshul Gupta');
+  const [selectedPeerId, setSelectedPeerId] = useState<string>('');
+  const [selectedPeerName, setSelectedPeerName] = useState<string>('');
 
-  const handleSelectConversation = (peerName: string) => {
-    setSelectedPeer(peerName);
+  // ── Boot the mesh engine (runs once on mount) ──────────────────────────
+  const { sendEmergency } = useMeshEngine();
+
+  const handleSelectConversation = (peerId: string, peerName: string) => {
+    setSelectedPeerId(peerId);
+    setSelectedPeerName(peerName);
     setActiveScreen('chat');
   };
 
   const handleEmergencyBroadcast = () => {
-    // Navigate to broadcast or active chat
-    setSelectedPeer('SOS Mesh Broadcast Channel');
+    sendEmergency('SOS — Emergency broadcast from this node', 'HIGH');
+    setSelectedPeerId('*');
+    setSelectedPeerName('SOS Mesh Broadcast Channel');
     setActiveScreen('chat');
   };
 
   return (
-    <SafeAreaProvider>
-      <View style={styles.outerContainer}>
-        <StatusBar style="dark" />
-        <View style={styles.mobileShell}>
-          {/* Active Screen View */}
-          <View style={styles.screenContent}>
-            {activeScreen === 'home' && (
-              <HomeScreen
-                onAddressPress={() => setActiveScreen('profile')}
-                onEmergencyBroadcast={handleEmergencyBroadcast}
-              />
-            )}
+    <View style={styles.outerContainer}>
+      <StatusBar style="dark" />
+      <View style={styles.mobileShell}>
+        {/* Active Screen View */}
+        <View style={styles.screenContent}>
+          {activeScreen === 'home' && (
+            <HomeScreen
+              onAddressPress={() => setActiveScreen('profile')}
+              onEmergencyBroadcast={handleEmergencyBroadcast}
+            />
+          )}
 
-            {activeScreen === 'messages' && (
-              <MessagesListScreen
-                onSelectConversation={handleSelectConversation}
-                onEmergencyBroadcast={handleEmergencyBroadcast}
-              />
-            )}
+          {activeScreen === 'messages' && (
+            <MessagesListScreen
+              onSelectConversation={handleSelectConversation}
+              onEmergencyBroadcast={handleEmergencyBroadcast}
+            />
+          )}
 
-            {activeScreen === 'chat' && (
-              <ChatScreen
-                peerName={selectedPeer}
-                onBack={() => setActiveScreen('messages')}
-              />
-            )}
+          {activeScreen === 'chat' && (
+            <ChatScreen
+              peerId={selectedPeerId}
+              peerName={selectedPeerName}
+              onBack={() => setActiveScreen('messages')}
+            />
+          )}
 
-            {activeScreen === 'profile' && (
-              <ProfileScreen />
-            )}
-          </View>
-
-          {/* Bottom Navigation Bar */}
-          <BottomNav
-            activeScreen={activeScreen}
-            onNavigate={(screen) => setActiveScreen(screen)}
-          />
+          {activeScreen === 'profile' && (
+            <ProfileScreen />
+          )}
         </View>
+
+        {/* Bottom Navigation Bar */}
+        <BottomNav
+          activeScreen={activeScreen}
+          onNavigate={(screen) => setActiveScreen(screen)}
+        />
       </View>
+    </View>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppInner />
     </SafeAreaProvider>
   );
 }

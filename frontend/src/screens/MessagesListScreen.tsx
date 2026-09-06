@@ -11,10 +11,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
-import { Conversation } from '../types';
+import { useMeshStore } from '../stores/useMeshStore';
+import { usePacketStore } from '../stores/usePacketStore';
+import { MirageNode } from '../engine/types';
 
 interface MessagesListScreenProps {
-  onSelectConversation: (peerName: string) => void;
+  onSelectConversation: (peerId: string, peerName: string) => void;
   onEmergencyBroadcast?: () => void;
 }
 
@@ -23,56 +25,38 @@ export const MessagesListScreen: React.FC<MessagesListScreenProps> = ({
   onEmergencyBroadcast,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const { peers, connectionStatus, localNodeId } = useMeshStore();
+  const { getMessagesForPeer } = usePacketStore();
 
-  const [conversations] = useState<Conversation[]>([
-    {
-      id: 'c-1',
-      peerId: 'peer-anshul',
-      peerName: 'Anshul Gupta',
-      lastMessage: 'Understood. Battery level is 85%. Keeping mesh node active.',
-      timestamp: '10:45 AM',
-      unreadCount: 0,
-      hopCount: 1,
-      isOnline: true,
-    },
-    {
-      id: 'c-2',
-      peerId: 'peer-alpha',
-      peerName: 'Disaster Relief Alpha',
-      lastMessage: 'Emergency supplies arriving near ABC Bangalore zone within 20 mins.',
-      timestamp: '10:30 AM',
-      unreadCount: 2,
-      isEmergency: true,
-      hopCount: 2,
-      isOnline: true,
-    },
-    {
-      id: 'c-3',
-      peerId: 'peer-station4',
-      peerName: 'Medical Station 4',
-      lastMessage: 'First-aid post established at sector 12. Power generator live.',
-      timestamp: '09:55 AM',
-      unreadCount: 0,
-      hopCount: 1,
-      isOnline: true,
-    },
-    {
-      id: 'c-4',
-      peerId: 'peer-volunteer',
-      peerName: 'Relief Volunteer Node',
-      lastMessage: 'Packet Store-Carry-Forward queue cleared. All peers synced.',
-      timestamp: 'Yesterday',
-      unreadCount: 0,
-      hopCount: 3,
-      isOnline: false,
-    },
-  ]);
+  // Convert live peers Map to array
+  const peerList = Array.from(peers.values());
 
-  const filteredConversations = conversations.filter(
-    (c) =>
-      c.peerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filter by search
+  const filtered = peerList.filter((p) =>
+    p.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.nodeId.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const peerCount = peerList.length;
+  const onlineCount = peerList.filter((p) => p.status === 'alive').length;
+
+  const getLastMessage = (peer: MirageNode) => {
+    const msgs = getMessagesForPeer(peer.nodeId, localNodeId);
+    if (msgs.length === 0) return 'No messages yet — tap to start';
+    return msgs[msgs.length - 1].content;
+  };
+
+  const getUnreadCount = (peer: MirageNode) => {
+    const msgs = getMessagesForPeer(peer.nodeId, localNodeId);
+    return msgs.filter((m) => !m.isSelf && m.status !== 'delivered').length;
+  };
+
+  const statusLabel = () => {
+    if (connectionStatus === 'connecting') return 'Connecting to mesh...';
+    if (connectionStatus === 'disconnected') return 'Not connected';
+    if (peerCount === 0) return 'No peers in range';
+    return `${peerCount} Mesh Peer${peerCount !== 1 ? 's' : ''} in Range (P2P)`;
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -82,15 +66,21 @@ export const MessagesListScreen: React.FC<MessagesListScreenProps> = ({
           <View>
             <Text style={styles.title}>Messages</Text>
             <View style={styles.peerBadgeRow}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.peerBadgeText}>3 Mesh Peers in Range (Offline P2P)</Text>
+              <View
+                style={[
+                  styles.onlineDot,
+                  connectionStatus === 'connecting' && styles.connectingDot,
+                  connectionStatus === 'disconnected' && styles.offlineDot,
+                ]}
+              />
+              <Text style={styles.peerBadgeText}>{statusLabel()}</Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.newChatBtn}
             activeOpacity={0.8}
-            onPress={() => onSelectConversation('New Mesh Peer')}
+            onPress={() => onSelectConversation('*', 'SOS Mesh Broadcast Channel')}
           >
             <Ionicons name="add" size={22} color={COLORS.textWhite} />
           </TouchableOpacity>
@@ -132,63 +122,89 @@ export const MessagesListScreen: React.FC<MessagesListScreenProps> = ({
             <View style={styles.broadcastContent}>
               <Text style={styles.broadcastTitle}>SOS Mesh Broadcast Channel</Text>
               <Text style={styles.broadcastSubtitle}>
-                Instant broadcast to all 3 reachable devices
+                {peerCount > 0
+                  ? `Instant broadcast to all ${peerCount} reachable device${peerCount !== 1 ? 's' : ''}`
+                  : 'No peers in range — SCF will queue your message'}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.primaryRed} />
           </TouchableOpacity>
 
-          <Text style={styles.sectionLabel}>DIRECT CONVERSATIONS</Text>
+          <Text style={styles.sectionLabel}>
+            {peerList.length > 0 ? 'CONNECTED PEERS' : 'DIRECT CONVERSATIONS'}
+          </Text>
 
-          {/* Conversation Cards */}
-          {filteredConversations.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.convoCard}
-              activeOpacity={0.85}
-              onPress={() => onSelectConversation(item.peerName)}
-            >
-              {/* Avatar matching Screenshot 2 */}
-              <View style={styles.avatar}>
-                <Ionicons name="person" size={24} color={COLORS.textWhite} />
-                {item.isOnline && <View style={styles.onlineBadge} />}
-              </View>
+          {/* Empty state */}
+          {peerList.length === 0 && connectionStatus === 'connected' && (
+            <View style={styles.emptyState}>
+              <Ionicons name="wifi-outline" size={48} color={COLORS.textMuted} />
+              <Text style={styles.emptyStateText}>No peers in range</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Other devices running Mirage on the same network will appear here automatically.
+              </Text>
+            </View>
+          )}
 
-              {/* Message Details */}
-              <View style={styles.convoBody}>
-                <View style={styles.convoTopRow}>
-                  <Text style={styles.peerName} numberOfLines={1}>
-                    {item.peerName}
-                  </Text>
-                  <Text style={styles.timestamp}>{item.timestamp}</Text>
+          {connectionStatus !== 'connected' && (
+            <View style={styles.emptyState}>
+              <Ionicons name="cloud-offline-outline" size={48} color={COLORS.textMuted} />
+              <Text style={styles.emptyStateText}>
+                {connectionStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
+              </Text>
+              <Text style={styles.emptyStateSubtext}>
+                Make sure the signaling server is running on your local network.
+              </Text>
+            </View>
+          )}
+
+          {/* Live Peer Conversation Cards */}
+          {filtered.map((peer) => {
+            const lastMsg = getLastMessage(peer);
+            const unread = getUnreadCount(peer);
+            const isOnline = peer.status === 'alive';
+
+            return (
+              <TouchableOpacity
+                key={peer.nodeId}
+                style={styles.convoCard}
+                activeOpacity={0.85}
+                onPress={() => onSelectConversation(peer.nodeId, peer.displayName)}
+              >
+                {/* Avatar */}
+                <View style={[styles.avatar, !isOnline && styles.avatarOffline]}>
+                  <Ionicons name="person" size={24} color={COLORS.textWhite} />
+                  {isOnline && <View style={styles.onlineBadge} />}
                 </View>
 
-                <View style={styles.convoBottomRow}>
-                  <Text
-                    style={[
-                      styles.lastMessage,
-                      item.unreadCount > 0 && styles.lastMessageUnread,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.lastMessage}
-                  </Text>
+                {/* Message Details */}
+                <View style={styles.convoBody}>
+                  <View style={styles.convoTopRow}>
+                    <Text style={styles.peerName} numberOfLines={1}>
+                      {peer.displayName}
+                    </Text>
+                    <Text style={styles.nodeIdLabel} numberOfLines={1}>
+                      {peer.nodeId.slice(-6)}
+                    </Text>
+                  </View>
 
-                  {item.unreadCount > 0 ? (
-                    <View style={styles.unreadBadge}>
-                      <Text style={styles.unreadText}>{item.unreadCount}</Text>
-                    </View>
-                  ) : (
+                  <View style={styles.convoBottomRow}>
+                    <Text
+                      style={[styles.lastMessage, unread > 0 && styles.lastMessageUnread]}
+                      numberOfLines={1}
+                    >
+                      {lastMsg}
+                    </Text>
+
                     <View style={styles.hopBadge}>
                       <Text style={styles.hopText}>
-                        {item.hopCount === 1 ? 'Direct' : `${item.hopCount} hops`}
+                        {peer.status === 'alive' ? 'Direct' : peer.status}
                       </Text>
                     </View>
-                  )}
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -196,14 +212,8 @@ export const MessagesListScreen: React.FC<MessagesListScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.cardBg,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.cardBg },
+  container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     backgroundColor: COLORS.cardBg,
     flexDirection: 'row',
@@ -215,29 +225,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.navBorder,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    letterSpacing: -0.5,
-  },
-  peerBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  onlineDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: COLORS.onlineGreen,
-  },
-  peerBadgeText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    fontWeight: '600',
-  },
+  title: { fontSize: 26, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: -0.5 },
+  peerBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  onlineDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: COLORS.onlineGreen },
+  connectingDot: { backgroundColor: '#F59E0B' },
+  offlineDot: { backgroundColor: '#9CA3AF' },
+  peerBadgeText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
   newChatBtn: {
     width: 40,
     height: 40,
@@ -251,10 +244,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  searchSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
+  searchSection: { paddingHorizontal: 16, paddingVertical: 12 },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -271,18 +261,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-  },
-  listScrollView: {
-    flex: 1,
-  },
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
+  searchInput: { flex: 1, fontSize: 14, color: COLORS.textPrimary },
+  listScrollView: { flex: 1 },
+  listContainer: { paddingHorizontal: 16, paddingBottom: 20 },
   broadcastCard: {
     backgroundColor: '#FFF1F0',
     borderRadius: 14,
@@ -307,19 +288,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  broadcastContent: {
-    flex: 1,
-  },
-  broadcastTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.primaryRedDark,
-  },
-  broadcastSubtitle: {
-    fontSize: 12,
-    color: '#9F1239',
-    marginTop: 2,
-  },
+  broadcastContent: { flex: 1 },
+  broadcastTitle: { fontSize: 15, fontWeight: '700', color: COLORS.primaryRedDark },
+  broadcastSubtitle: { fontSize: 12, color: '#9F1239', marginTop: 2 },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
@@ -327,6 +298,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 10,
     marginLeft: 4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 40,
+    gap: 12,
+    paddingBottom: 20,
+  },
+  emptyStateText: { fontSize: 18, fontWeight: '700', color: COLORS.textSecondary },
+  emptyStateSubtext: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    maxWidth: 260,
+    lineHeight: 18,
   },
   convoCard: {
     backgroundColor: COLORS.cardBg,
@@ -358,6 +344,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  avatarOffline: { backgroundColor: '#9CA3AF' },
   onlineBadge: {
     position: 'absolute',
     bottom: 0,
@@ -369,59 +356,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.cardBg,
   },
-  convoBody: {
-    flex: 1,
-  },
+  convoBody: { flex: 1 },
   convoTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
-  peerName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-  },
-  convoBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  lastMessage: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginRight: 8,
-  },
-  lastMessageUnread: {
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-  },
-  unreadBadge: {
-    backgroundColor: COLORS.primaryRed,
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  unreadText: {
-    color: COLORS.textWhite,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  hopBadge: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  hopText: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-  },
+  peerName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, flex: 1 },
+  nodeIdLabel: { fontSize: 11, color: COLORS.textMuted, fontFamily: 'monospace' },
+  convoBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  lastMessage: { flex: 1, fontSize: 13, color: COLORS.textSecondary, marginRight: 8 },
+  lastMessageUnread: { fontWeight: '700', color: COLORS.textPrimary },
+  hopBadge: { backgroundColor: '#F3F4F6', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  hopText: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600' },
 });
