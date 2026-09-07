@@ -14,7 +14,6 @@ import { COLORS } from '../theme/colors';
 import { SosButton } from '../components/SosButton';
 import { AddressCard } from '../components/AddressCard';
 import { useMeshStore } from '../stores/useMeshStore';
-import { useEmergency } from '../hooks/useEmergency';
 
 interface HomeScreenProps {
   onAddressPress?: () => void;
@@ -29,7 +28,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [modalVisible, setModalVisible] = useState(false);
 
   const { peers, connectionStatus, displayName } = useMeshStore();
-  const { broadcastEmergency } = useEmergency();
 
   const peerCount = peers.size;
   const onlineCount = Array.from(peers.values()).filter((p) => p.status === 'alive').length;
@@ -37,8 +35,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const handleSosPress = () => {
     setIsEmergencyActive(true);
     setModalVisible(true);
-    // Fire real emergency broadcast through the mesh
-    broadcastEmergency('SOS — Emergency broadcast from this node');
+    // App owns the actual send so Home and the broadcast chat do not create
+    // two separate emergency packets for a single user gesture.
     if (onEmergencyBroadcast) onEmergencyBroadcast();
   };
 

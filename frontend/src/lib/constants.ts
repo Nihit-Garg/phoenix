@@ -13,10 +13,16 @@
  * server startup, e.g.:
  *   EXPO_PUBLIC_SIGNALING_URL=http://192.168.1.42:3001
  *
- * Falls back to localhost for solo development.
+ * Expo inlines EXPO_PUBLIC_ variables into the client bundle at build time.
+ * The localhost fallback is intentionally for one-device development only;
+ * it is never derived from the device currently running the app.
  */
+const configuredSignalingUrl = process.env.EXPO_PUBLIC_SIGNALING_URL?.trim();
+
 export const SIGNALING_URL: string =
-  process.env.EXPO_PUBLIC_SIGNALING_URL ?? 'http://localhost:3001';
+  (configuredSignalingUrl || 'http://localhost:3001').replace(/\/+$/, '');
+
+export const IS_SIGNALING_URL_CONFIGURED = Boolean(configuredSignalingUrl);
 
 // ─── Protocol ─────────────────────────────────────────────────────────────────
 

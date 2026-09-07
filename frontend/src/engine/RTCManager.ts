@@ -22,6 +22,7 @@ import {
   ForwardedAnswerPayload,
   ForwardedIceCandidatePayload,
 } from '../lib/signaling';
+import { Platform } from 'react-native';
 
 const DC_LABEL = 'mirage';
 
@@ -70,6 +71,15 @@ export class RTCManager {
     this._bindSignalingCallbacks();
   }
 
+  isSupported(): boolean {
+    if (Platform.OS === 'web') return typeof globalThis.RTCPeerConnection !== 'undefined';
+    try {
+      return typeof require('react-native-webrtc').RTCPeerConnection !== 'undefined';
+    } catch {
+      return false;
+    }
+  }
+
   destroy(): void {
     for (const conn of this.peers.values()) conn.pc.close();
     this.peers.clear();
@@ -103,9 +113,10 @@ export class RTCManager {
     return true;
   }
 
-  /** Broadcast to all open DataChannels. */
-  broadcast(data: string): void {
+  /** Broadcast to all open DataChannels, optionally excluding the link it arrived on. */
+  broadcast(data: string, excludedNodeId?: string): void {
     for (const conn of this.peers.values()) {
+      if (conn.nodeId === excludedNodeId) continue;
       if (conn.dc?.readyState === 'open') conn.dc.send(data);
     }
   }
@@ -123,6 +134,13 @@ export class RTCManager {
 
     // When we get an offer, we are the responder
     sig.onOffer = async (payload: ForwardedOfferPayload) => {
+      const existing = this.peers.get(payload.fromNodeId);
+      if (existing) {
+        // The server design elects existing peers as initiators. Ignore a late or
+        // duplicate offer rather than replacing a live peer connection.
+        if (existing.pc.signalingState !== 'closed') return;
+        this._closePeer(payload.fromNodeId);
+      }
       const conn = this._createPeerConnection(payload.fromNodeId, payload.fromSocketId);
 
       // Responder waits for DataChannel
@@ -153,8 +171,10 @@ export class RTCManager {
       if (!conn) return;
       try {
         await conn.pc.addIceCandidate(payload.candidate);
-      } catch (_) {
-        // ICE candidates can arrive before remote description — silently ignore
+      } catch (error) {
+        // A candidate received before SDP is recoverable only if negotiation is
+        // retried. Surface it rather than silently hiding a connectivity failure.
+        console.warn('[RTCManager] Could not add ICE candidate', error);
       }
     };
 
@@ -166,7 +186,8 @@ export class RTCManager {
   // ─── Private — helpers ────────────────────────────────────────────────────────
 
   private _createPeerConnection(nodeId: string, socketId: string): PeerConnection {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const PeerConnection = this._getPeerConnectionConstructor();
+    const pc = new PeerConnection(RTC_CONFIG) as RTCPeerConnection;
 
     const conn: PeerConnection = { pc, dc: null, nodeId, socketId };
     this.peers.set(nodeId, conn);
@@ -185,6 +206,23 @@ export class RTCManager {
     };
 
     return conn;
+  }
+
+  private _getPeerConnectionConstructor(): typeof RTCPeerConnection {
+    if (Platform.OS === 'web') {
+      if (!globalThis.RTCPeerConnection) {
+        throw new Error('WebRTC is unavailable in this browser.');
+      }
+      return globalThis.RTCPeerConnection;
+    }
+
+    try {
+      return require('react-native-webrtc').RTCPeerConnection as typeof RTCPeerConnection;
+    } catch {
+      throw new Error(
+        'Native WebRTC is unavailable. Install react-native-webrtc and run a custom Expo development build.'
+      );
+    }
   }
 
   private _bindDataChannel(dc: RTCDataChannel, nodeId: string, peer: NodeSummary): void {

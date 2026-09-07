@@ -39,7 +39,7 @@ export const offerSchema = z.object({
   targetSocketId: z.string().min(1),
   /** SDP offer object (RTCSessionDescriptionInit). */
   sdp: z.object({
-    type: z.enum(['offer', 'answer', 'pranswer', 'rollback']),
+    type: z.literal('offer'),
     sdp: z.string().optional(),
   }),
 });
@@ -56,7 +56,7 @@ export const answerSchema = z.object({
   targetSocketId: z.string().min(1),
   /** SDP answer object (RTCSessionDescriptionInit). */
   sdp: z.object({
-    type: z.enum(['offer', 'answer', 'pranswer', 'rollback']),
+    type: z.literal('answer'),
     sdp: z.string().optional(),
   }),
 });

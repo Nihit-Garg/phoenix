@@ -76,9 +76,11 @@ export interface MirageNode {
 // ─── SCF Queue ────────────────────────────────────────────────────────────────
 
 export interface QueueEntry {
-  id:        string;
-  packet:    MiragePacket;
+  id:         string;
+  packet:     MiragePacket;
   enqueuedAt: number;
+  expiresAt:  number;
+  attempts:   number;
 }
 
 // ─── Emergency ────────────────────────────────────────────────────────────────
@@ -95,4 +97,5 @@ export interface EmergencyMarker {
 
 export const BROADCAST_ADDRESS = '*';
 export const DEFAULT_TTL       = 7;
+export const EMERGENCY_TTL     = 15;
 export const PROTOCOL_VERSION  = '1.0';

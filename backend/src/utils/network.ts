@@ -10,7 +10,12 @@ import os from 'os';
  * @returns The LAN IPv4 address string, or '0.0.0.0' if none is found.
  */
 export function getLanIp(): string {
+  const configured = process.env.LAN_IP?.trim();
+  if (configured) return configured;
+
   const interfaces = os.networkInterfaces();
+
+  const candidates: Array<{ name: string; address: string }> = [];
 
   for (const name of Object.keys(interfaces)) {
     const addrs = interfaces[name];
@@ -19,10 +24,17 @@ export function getLanIp(): string {
     for (const addr of addrs) {
       // Accept IPv4 non-loopback addresses only
       if (addr.family === 'IPv4' && !addr.internal) {
-        return addr.address;
+        candidates.push({ name, address: addr.address });
       }
     }
   }
+
+  // Prefer physical Wi-Fi/Ethernet adapters over common virtual adapters.
+  const physical = candidates.find(({ name }) =>
+    !/(docker|hyper-v|vEthernet|virtual|vmware|vpn|wsl)/i.test(name)
+  );
+  if (physical) return physical.address;
+  if (candidates[0]) return candidates[0].address;
 
   return '0.0.0.0';
 }
