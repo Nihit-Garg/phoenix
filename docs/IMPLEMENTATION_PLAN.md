@@ -1,31 +1,17 @@
-# MIRAGE — Implementation Plan
+# Implementation plan
 
-## Implemented
+## Complete
 
-- Expo / React Native UI with home, peer list, chat, and profile screens.
-- Express + Socket.IO signaling relay and live node registry.
-- Configured signaling URL through EXPO_PUBLIC_SIGNALING_URL.
-- WebRTC offer/answer/ICE relay, direct DataChannels, HELLO route exchange,
-  heartbeats, duplicate detection, and in-memory routing.
-- AsyncStorage persistence for node identity and SCF queue.
-- Priority queue retention and route-triggered queue draining.
+- Phase 0: Android-only, two-app, offline-only architecture; map, GPS, and security policies.
+- Phase 1: Civilian and Hospital Android app shells, unique package IDs, Wi-Fi/location permission declarations, Expo development-client configuration, and legacy server/WebRTC removal.
 
-## Next engineering milestones
+## Next
 
-1. Validate the installed native WebRTC transport (react-native-webrtc) in a
-   custom Expo development build for Android/iOS.
-2. Add integration tests for reconnect, direct messaging, queue drain, broadcast,
-   and three-node relay topology.
-3. Add a controlled neighbor/topology mode to demonstrate forced multi-hop
-   routes instead of a full direct peer graph.
-4. Add validated packet schemas, message delivery acknowledgements, route aging,
-   and alternate-route retention.
-5. Add server event rate limits and an authenticated production signaling mode.
-
-## Definition of done for a LAN demo
-
-- Two browser clients on separate laptops show each other as peers.
-- A direct message is delivered after a DataChannel opens.
-- A disconnected destination queues a message and the message survives refresh.
-- A reconnect restores signaling registration and peer discovery.
-- An SOS message reaches all reachable direct peers exactly once.
+1. Transport interface.
+2. Secure device identity and hospital provisioning.
+3. Encrypted envelope helpers and tests.
+4. Wi-Fi Direct discovery.
+5. UDP peer transport.
+6. Dedupe, routing, relay, and queue integration.
+7. Mandatory live-GPS SOS flow.
+8. Hospital decryption, dashboard, and offline map.

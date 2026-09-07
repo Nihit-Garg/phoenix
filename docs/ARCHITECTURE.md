@@ -1,41 +1,28 @@
-# MIRAGE — Current Architecture
+# Architecture
 
-```mermaid
-flowchart LR
-  UI[Expo / React Native UI] --> Store[Zustand stores]
-  Store --> Engine[MeshEngine]
-  Engine --> RTC[RTCManager / WebRTC]
-  Engine --> Queue[AsyncStorage SCF queue]
-  RTC <-- SDP and ICE --> Signal[Express + Socket.IO]
-  RTC <-- packets --> Peer[Nearby Mirage peer]
+## Locked decisions
+
+- Android-only MVP.
+- Separate Civilian and Hospital/Admin apps.
+- Offline-only delivery with no cloud or server dependency.
+- Wi-Fi Direct discovers and connects nearby phones.
+- UDP port 9000 carries Mirage envelopes.
+- Every SOS requires live latitude and longitude.
+
+## Target flow
+
+```text
+Civilian UI -> GPS -> encrypted envelope -> routing/dedupe -> UDP -> Wi-Fi Direct peers -> Hospital decrypts -> Dashboard
 ```
 
-## Connection lifecycle
+Relays route opaque envelopes. Only the hospital device holds the hospital private key needed to read SOS content.
 
-1. `useMeshEngine` restores the local identity and initializes engine handlers.
-2. The Socket.IO client connects to `EXPO_PUBLIC_SIGNALING_URL`.
-3. Its `onConnect` handler joins the server. This runs on initial connect and
-   every Socket.IO reconnection.
-4. The server returns a peer list and broadcasts the new peer to existing
-   members. Existing members initiate the WebRTC offer.
-5. An opened DataChannel causes both peers to exchange a one-way HELLO snapshot,
-   add direct routes, start heartbeats, and advertise route changes.
+## Map policy
 
-## Packet behavior
+Coordinates are authoritative. The first map scope is a prebuilt offline Bengaluru MapLibre pack. Address text is optional metadata and never replaces GPS coordinates.
 
-- Originated and received packets enter the duplicate cache once.
-- A direct destination is sent unchanged; an intermediate router creates a
-  forwarded copy that decrements TTL and appends its node ID to `hopTrace`.
-- Emergency packets are broadcast to every open direct DataChannel except the
-  connection that delivered the current copy.
-- Unroutable DATA packets enter the priority SCF queue. The queue is stored in
-  AsyncStorage and restores on app start. Entries expire by priority.
-- Heartbeats run every three seconds. Three missed acknowledgements remove the
-  direct peer and routes using that next hop.
+## Project layout
 
-## Current platform support
-
-The repository has one Expo / React Native frontend, not a Next.js frontend.
-WebRTC works in supported desktop browsers through Expo Web. A native Android or
-iOS build needs a native WebRTC module and custom development build before the
-same engine can run on a phone.
+- `frontend/` is the Civilian Android app.
+- `hospital/` is the Hospital Android app.
+- No backend directory remains.

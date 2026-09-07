@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Mirage Hospital",
+    "slug": "mirage-hospital",
+    "version": "1.0.0",
+    "platforms": ["android"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.mirage.hospital",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "NEARBY_WIFI_DEVICES", "ACCESS_WIFI_STATE", "CHANGE_WIFI_STATE"]
+    }
+  }
+}

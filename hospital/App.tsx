@@ -1,14 +1,13 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { CivilianDashboard } from './src/screens/CivilianDashboard';
+import { HospitalDashboard } from './src/HospitalDashboard';
 
-/** Android-only, offline-first Civilian Dashboard. */
 export default function App() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-      <CivilianDashboard />
+      <StatusBar style="dark" />
+      <HospitalDashboard />
     </SafeAreaProvider>
   );
 }
