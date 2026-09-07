@@ -1,9 +1,21 @@
 # Mirage implementation status
 
-Last reviewed: 2026-09-07  
+Last reviewed: 2026-09-08
 Branch: `anshul-dev`
 
 This is the detailed source of truth for Mirage: the intended behavior, completed work, partial work, known blockers, remaining phases, and the conditions required before the product can be considered ready.
+
+## 2026-09-08 demo blocker fixes
+
+The user's phone screenshots confirm that the Nearby APK launches, but discovery failed with 8036 (missing fine-location permission), and the Civilian APK was unprovisioned. Both confirmed source bugs are now corrected:
+
+- Fine and coarse location are requested together on every supported Android version, including 13+, and the actual fine-location grant is verified before native startup.
+- Failed startup can recover when returning from Settings or using Retry nearby connection; healthy links remain running.
+- Base64URL Hospital exports are accepted and validated as 32-byte public keys. Standard Base64 imports are normalized to the runtime's URL-safe unpadded format. Only public fields are embedded.
+- Civilian displays the provisioned Hospital key ID for comparison with the Hospital phone.
+- Regression coverage checks both adapters and the actual provisioning script with mocked platform/file boundaries.
+
+The real Hospital manifest must still be imported on the testing laptop, and both APKs must be rebuilt/reinstalled. Neither a successful real SOS/ACK nor a relay hop has been demonstrated yet. See [DEMO_RECOVERY.md](DEMO_RECOVERY.md) for the exact recovery procedure.
 
 ## 1. Scope and locked decisions
 

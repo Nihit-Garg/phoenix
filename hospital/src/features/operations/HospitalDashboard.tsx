@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { PeerEndpoint, TransportStatus } from '../../../../backend/src/transport/PeerTransport';
 import { NearbyConnectionsTransport } from '../../core/transport/NearbyConnectionsTransport';
 import { exportProvisioningManifest, HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from '../../core/security/identity';
@@ -26,8 +26,11 @@ export function HospitalDashboard() {
 
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
-      if (event.type === 'status') setTransportStatus(event.status);
-      if (event.type === 'peer') setPeers((current) => [...current.filter((peer) => peer.peerId !== event.peer.peerId), event.peer]);
+      if (event.type === 'status') {
+        setTransportStatus(event.status);
+        if (event.status === 'starting' || event.status === 'ready') setNetworkError(null);
+      }
+      if (event.type === 'peer') setPeers([...transport.getPeers()]);
       if (event.type === 'error') setNetworkError(event.error.message);
       if (event.type === 'group') setGroup(event);
     });
@@ -96,10 +99,14 @@ export function HospitalDashboard() {
         </Text>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>NETWORK STATUS</Text>
-          <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : 'Starting nearby transport'}</Text>
+          <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : transportStatus === 'unavailable' ? 'Nearby network needs attention' : 'Starting nearby transport'}</Text>
           <Text style={styles.cardHint}>{nativeTransportReady ? 'Advertising and discovering automatically through Google Nearby Connections.' : 'Requires an Android development build and Google Play services.'}</Text>
           <Text style={styles.groupStatus}>{group.groupFormed ? `${peers.filter((peer) => peer.status === 'connected').length} nearby connection${peers.filter((peer) => peer.status === 'connected').length === 1 ? '' : 's'} active` : 'Searching for nearby Mirage phones automatically.'}</Text>
           {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
+          {transportStatus === 'unavailable' ? <View>
+            <Pressable style={styles.exportButton} onPress={() => void Linking.openSettings().catch(() => setNetworkError('Open Android Settings → Apps → Mirage Hospital → Permissions.'))}><Text style={styles.exportButtonText}>Open app permissions</Text></Pressable>
+            <Pressable onPress={() => void transport.start().catch(() => undefined)}><Text style={styles.muted}>Retry nearby connection</Text></Pressable>
+          </View> : null}
           {peers.filter((peer) => peer.status !== 'disconnected').map((peer) => <View style={styles.peerRow} key={peer.peerId}>
             <View style={styles.peerCopy}>
               <Text style={styles.peerName}>{peer.displayName ?? peer.ipAddress ?? 'Nearby device'}</Text>

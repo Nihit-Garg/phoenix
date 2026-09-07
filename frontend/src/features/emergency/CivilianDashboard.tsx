@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { PeerEndpoint, TransportStatus } from '../../../../backend/src/transport/PeerTransport';
 import { NearbyConnectionsTransport } from '../../core/transport/NearbyConnectionsTransport';
@@ -45,16 +45,15 @@ export function CivilianDashboard() {
 
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
-      if (event.type === 'status') setTransportStatus(event.status);
-      if (event.type === 'peer') setPeers((current) => [...current.filter((peer) => peer.peerId !== event.peer.peerId), event.peer]);
+      if (event.type === 'status') {
+        setTransportStatus(event.status);
+        if (event.status === 'starting' || event.status === 'ready') setNetworkError(null);
+      }
+      if (event.type === 'peer') setPeers([...transport.getPeers()]);
       if (event.type === 'error') setNetworkError(event.error.message);
       if (event.type === 'group') setGroup(event);
     });
-    void (async () => {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') setLocationError('Allow precise location once so SOS can include your position.');
-      await transport.start();
-    })().catch((error: unknown) => setNetworkError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
+    void transport.start().catch((error: unknown) => setNetworkError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
     return () => {
       unsubscribe();
       void transport.stop();
@@ -146,7 +145,7 @@ export function CivilianDashboard() {
   const activePeerCount = peers.filter((peer) => peer.status === 'connected').length;
   const networkLabel = group.groupFormed
     ? `Nearby emergency network connected${activePeerCount ? ` · ${activePeerCount} peer${activePeerCount === 1 ? '' : 's'}` : ''}`
-    : nativeTransportReady ? 'Finding and connecting to nearby Mirage phones…' : 'Starting nearby emergency network…';
+    : nativeTransportReady ? 'Finding and connecting to nearby Mirage phones…' : transportStatus === 'unavailable' ? 'Nearby network needs attention' : 'Starting nearby emergency network…';
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -178,9 +177,14 @@ export function CivilianDashboard() {
         </View>
 
         {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
+        {transportStatus === 'unavailable' ? <View>
+          <Pressable accessibilityRole="button" onPress={() => void Linking.openSettings().catch(() => setNetworkError('Open Android Settings → Apps → Mirage Civilian → Permissions.'))}><Text style={styles.deliveryStatus}>Open app permissions</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => void transport.start().catch(() => undefined)}><Text style={styles.deliveryStatus}>Retry nearby connection</Text></Pressable>
+        </View> : null}
         {locationError ? <Text style={styles.error}>{locationError}</Text> : null}
         {identityError ? <Text style={styles.error}>{identityError}</Text> : null}
         {!HOSPITAL_PUBLIC_MANIFEST ? <Text style={styles.error}>This APK is not provisioned with a Hospital key. SOS cannot be encrypted until it is rebuilt after provisioning.</Text> : null}
+        {HOSPITAL_PUBLIC_MANIFEST ? <Text style={styles.traceText}>Hospital: {HOSPITAL_PUBLIC_MANIFEST.keyId}</Text> : null}
         <Text style={currentDelivery?.state === 'delivered' ? styles.success : styles.deliveryStatus}>{deliveryMessage ?? (HOSPITAL_PUBLIC_MANIFEST ? 'Ready. Nearby connection and relay setup happen automatically.' : 'Waiting for a provisioned Civilian build.')}</Text>
         {routingTrace[0] ? <Text style={styles.traceText}>{routingTrace[0]}</Text> : null}
       </ScrollView>
