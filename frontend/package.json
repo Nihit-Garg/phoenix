@@ -22,6 +22,7 @@
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android --device",
+    "provision": "node scripts/provision-hospital-manifest.mjs",
     "typecheck": "tsc --noEmit"
   },
   "private": true

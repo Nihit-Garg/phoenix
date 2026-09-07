@@ -22,11 +22,12 @@ class MiragePeerTransportModule : Module() {
   private var receiver: BroadcastReceiver? = null
   private var receiverContext: Context? = null
   private var udpSocket: DatagramSocket? = null
-  private val udpExecutor = Executors.newSingleThreadExecutor()
+  private val udpReceiveExecutor = Executors.newSingleThreadExecutor()
+  private val udpSendExecutor = Executors.newSingleThreadExecutor()
 
   override fun definition() = ModuleDefinition {
     Name("MiragePeerTransport")
-    Events("onStatus", "onPeer", "onError", "onConnection", "onPacket")
+    Events("onStatus", "onPeer", "onError", "onConnection", "onPacket", "onSendResult")
 
     OnCreate { initialize() }
     OnDestroy { cleanup() }
@@ -37,9 +38,9 @@ class MiragePeerTransportModule : Module() {
     Function("connect") { deviceAddress: String -> connect(deviceAddress); true }
     Function("disconnect") { disconnect(); true }
     AsyncFunction("getPeers") { promise: Promise -> requestPeers(promise) }
-    Function("startUdp") { port: Int -> startUdp(port); true }
+    Function("startUdp") { port: Int -> startUdp(port) }
     Function("stopUdp") { stopUdp(); true }
-    Function("sendUdp") { host: String, port: Int, payload: String -> sendUdp(host, port, payload); true }
+    Function("sendUdp") { host: String, port: Int, payload: String, requestId: String -> sendUdp(host, port, payload, requestId); true }
   }
 
   private fun initialize() {
@@ -73,13 +74,14 @@ class MiragePeerTransportModule : Module() {
   private fun disconnect() { withManager("disconnect") { manager, channel -> manager.removeGroup(channel, action("disconnect")) } }
   private fun requestConnectionInfo() { withManager("read connection information") { manager, channel -> manager.requestConnectionInfo(channel) { info -> sendEvent("onConnection", mapOf("groupOwnerAddress" to info.groupOwnerAddress?.hostAddress, "isGroupOwner" to info.isGroupOwner)); sendEvent("onStatus", mapOf("status" to if (info.groupFormed) "connected" else "disconnected")) } } }
 
-  private fun startUdp(port: Int) {
-    if (udpSocket != null) return
+  private fun startUdp(port: Int): Boolean {
+    if (udpSocket != null) return true
     try {
       udpSocket = DatagramSocket(null).apply { reuseAddress = true; bind(InetSocketAddress(port)) }
-      udpExecutor.execute { receiveUdpPackets() }
+      udpReceiveExecutor.execute { receiveUdpPackets() }
       sendEvent("onStatus", mapOf("status" to "udp-ready"))
-    } catch (error: Exception) { emitError("UDP socket could not bind to port $port: ${error.message}") }
+      return true
+    } catch (error: Exception) { emitError("UDP socket could not bind to port $port: ${error.message}"); return false }
   }
   private fun stopUdp() { udpSocket?.close(); udpSocket = null }
   private fun receiveUdpPackets() {
@@ -90,9 +92,23 @@ class MiragePeerTransportModule : Module() {
       catch (error: Exception) { if (!socket.isClosed) emitError("UDP receive failed: ${error.message}"); return }
     }
   }
-  private fun sendUdp(host: String, port: Int, payload: String) {
-    val socket = udpSocket ?: return emitError("UDP socket is not running.")
-    udpExecutor.execute { try { val bytes = payload.toByteArray(Charsets.UTF_8); socket.send(DatagramPacket(bytes, bytes.size, InetAddress.getByName(host), port)) } catch (error: Exception) { emitError("UDP send failed: ${error.message}") } }
+  private fun sendUdp(host: String, port: Int, payload: String, requestId: String) {
+    val socket = udpSocket
+    if (socket == null) {
+      sendEvent("onSendResult", mapOf("requestId" to requestId, "success" to false, "error" to "UDP socket is not running."))
+      return
+    }
+    udpSendExecutor.execute {
+      try {
+        val bytes = payload.toByteArray(Charsets.UTF_8)
+        socket.send(DatagramPacket(bytes, bytes.size, InetAddress.getByName(host), port))
+        sendEvent("onSendResult", mapOf("requestId" to requestId, "success" to true))
+      } catch (error: Exception) {
+        val message = "UDP send failed: ${error.message}"
+        sendEvent("onSendResult", mapOf("requestId" to requestId, "success" to false, "error" to message))
+        emitError(message)
+      }
+    }
   }
 
   private fun requestPeers(promise: Promise?) {
@@ -112,7 +128,12 @@ class MiragePeerTransportModule : Module() {
     override fun onSuccess() { sendEvent("onStatus", mapOf("status" to "$operation-started")) }
     override fun onFailure(reason: Int) { emitError("Wi-Fi Direct $operation failed ($reason).") }
   }
-  private fun peerMap(device: WifiP2pDevice) = mapOf("deviceAddress" to device.deviceAddress, "deviceName" to (device.deviceName ?: "Nearby device"), "status" to "discovered")
+  private fun peerMap(device: WifiP2pDevice) = mapOf("deviceAddress" to device.deviceAddress, "deviceName" to (device.deviceName ?: "Nearby device"), "status" to when (device.status) {
+    WifiP2pDevice.CONNECTED -> "connected"
+    WifiP2pDevice.INVITED -> "connecting"
+    WifiP2pDevice.FAILED, WifiP2pDevice.UNAVAILABLE -> "disconnected"
+    else -> "discovered"
+  })
   private fun emitError(message: String) { sendEvent("onError", mapOf("message" to message)) }
-  private fun cleanup() { stopUdp(); udpExecutor.shutdownNow(); receiver?.let { receiverContext?.unregisterReceiver(it) }; receiver = null; receiverContext = null; channel = null; manager = null }
+  private fun cleanup() { stopUdp(); udpReceiveExecutor.shutdownNow(); udpSendExecutor.shutdownNow(); receiver?.let { receiverContext?.unregisterReceiver(it) }; receiver = null; receiverContext = null; channel = null; manager = null }
 }

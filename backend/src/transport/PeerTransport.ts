@@ -9,6 +9,7 @@ export interface PeerTransport {
   start(): Promise<void>; stop(): Promise<void>; connect(peerId: string): Promise<void>; disconnect(peerId: string): Promise<void>;
   send(peerId: string, bytes: Uint8Array): Promise<void>; broadcast(bytes: Uint8Array, exceptPeerId?: string): Promise<void>;
   getPeers(): readonly PeerEndpoint[]; subscribe(listener: (event: TransportEvent) => void): () => void;
+  rememberPeerEndpoint?(peerId: string, ipAddress: string, port: number, displayName?: string): void;
 }
 
 /** Runtime guard until the Android Wi-Fi Direct + UDP native adapter is installed. */

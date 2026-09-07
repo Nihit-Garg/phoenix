@@ -6,4 +6,5 @@ export type MiragePeerTransportModuleEvents = {
   onError: (params: { message: string }) => void;
   onConnection: (params: { groupOwnerAddress: string | null; isGroupOwner: boolean }) => void;
   onPacket: (params: { host: string; port: number; payload: string }) => void;
+  onSendResult: (params: { requestId: string; success: boolean; error?: string }) => void;
 };

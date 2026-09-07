@@ -11,7 +11,7 @@ declare class MiragePeerTransportModule extends NativeModule<MiragePeerTransport
   getPeers(): Promise<Peer[]>;
   startUdp(port: number): boolean;
   stopUdp(): boolean;
-  sendUdp(host: string, port: number, payload: string): boolean;
+  sendUdp(host: string, port: number, payload: string, requestId: string): boolean;
 }
 
 export default requireNativeModule<MiragePeerTransportModule>('MiragePeerTransport');

@@ -16,8 +16,8 @@ export function canRelay(envelope: EncryptedEnvelope): boolean {
 }
 
 /** Relays only opaque ciphertext while adding no decrypted content to the path. */
-export function relayEnvelope(envelope: EncryptedEnvelope, relayPeerId: string): EncryptedEnvelope {
+export function relayEnvelope<T extends EncryptedEnvelope>(envelope: T, relayPeerId: string): T {
   if (!canRelay(envelope)) throw new Error('Envelope hop limit reached.');
   if (envelope.path?.includes(relayPeerId)) throw new Error('Envelope relay loop detected.');
-  return { ...envelope, hops: (envelope.hops ?? 0) + 1, maxHops: envelope.maxHops ?? DEFAULT_MAX_HOPS, path: [...(envelope.path ?? []), relayPeerId] };
+  return { ...envelope, hops: (envelope.hops ?? 0) + 1, maxHops: envelope.maxHops ?? DEFAULT_MAX_HOPS, path: [...(envelope.path ?? []), relayPeerId] } as T;
 }

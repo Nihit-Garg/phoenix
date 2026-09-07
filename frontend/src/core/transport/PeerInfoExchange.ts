@@ -14,9 +14,11 @@ export class PeerInfoExchange {
     const signed: SignedPeerInfo = { peer, signature: crypto_sign_detached(peerInfoSigningPayload(peer), from_base64(this.identity.signingSecretKey), 'base64') };
     await this.transport.send(peerId, new TextEncoder().encode(JSON.stringify(signed)));
   }
-  private async receive(_senderId: string, sourceIp: string, sourcePort: number, value: string): Promise<void> {
+  private async receive(_senderId: string, sourceIp: string, _sourcePort: number, value: string): Promise<void> {
     let signed: SignedPeerInfo; try { signed = parseSignedPeerInfo(value); } catch { return; }
     if (!crypto_sign_verify_detached(from_base64(signed.signature), peerInfoSigningPayload(signed.peer), from_base64(signed.peer.signingPublicKey))) return;
-    await this.directory.upsert({ ...signed.peer, ipAddress: sourceIp, port: sourcePort as 9000, updatedAt: Date.now() });
+    const verified = { ...signed.peer, ipAddress: sourceIp, port: 9000 as const, updatedAt: Date.now() };
+    await this.directory.upsert(verified);
+    this.transport.rememberPeerEndpoint?.(verified.peerId, verified.ipAddress, verified.port, verified.displayName);
   }
 }

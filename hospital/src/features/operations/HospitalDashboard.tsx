@@ -1,8 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { TransportStatus } from '../../../../backend/src/transport/PeerTransport';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { PeerEndpoint, TransportStatus } from '../../../../backend/src/transport/PeerTransport';
 import { WifiDirectTransport } from '../../core/transport/WifiDirectTransport';
-import { HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from '../../core/security/identity';
+import { exportProvisioningManifest, HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from '../../core/security/identity';
+import { MeshEngine } from '../../../../backend/src/mesh/engine';
+import { PeerInfoExchange } from '../../core/transport/PeerInfoExchange';
+import { createSosAckEnvelope, decryptSosEnvelope } from '../../core/security/envelope';
+import { SosPayload } from '../../../../backend/src/domain/sos';
+
+interface ReceivedSos { envelopeId: string; payload: SosPayload; receivedAt: number; }
 
 /** Phase 1 shell for the Android-only hospital administrative app. */
 export function HospitalDashboard() {
@@ -10,12 +16,19 @@ export function HospitalDashboard() {
   const [transportStatus, setTransportStatus] = useState<TransportStatus>('stopped');
   const [identity, setIdentity] = useState<HospitalIdentity | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<ReceivedSos[]>([]);
+  const [peers, setPeers] = useState<PeerEndpoint[]>([]);
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  const [provisioningStatus, setProvisioningStatus] = useState<string | null>(null);
+  const acceptedSosIds = useRef(new Set<string>());
 
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
       if (event.type === 'status') setTransportStatus(event.status);
+      if (event.type === 'peer') setPeers((current) => [...current.filter((peer) => peer.peerId !== event.peer.peerId), event.peer]);
+      if (event.type === 'error') setNetworkError(event.error.message);
     });
-    void transport.start().catch((error: unknown) => setIdentityError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
+    void transport.start().catch((error: unknown) => setNetworkError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
     return () => {
       unsubscribe();
       void transport.stop();
@@ -28,10 +41,60 @@ export function HospitalDashboard() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!identity) return;
+    const peerInfo = new PeerInfoExchange(transport, identity);
+    const mesh = new MeshEngine(identity.encryptionPublicKey, identity.keyId, transport);
+    const stopPeerInfo = peerInfo.start();
+    mesh.start();
+    const stopMesh = mesh.subscribe((event) => {
+      const packet = event.packet;
+      if (packet?.kind !== 'sos') return;
+      if (event.disposition === 'dropped' && event.reason === 'Duplicate packet.' && acceptedSosIds.current.has(packet.envelopeId)) {
+        void mesh.send(createSosAckEnvelope(packet, identity)).catch(() => undefined);
+        return;
+      }
+      if (event.disposition !== 'delivered') return;
+      try {
+        const payload = decryptSosEnvelope(packet, identity);
+        acceptedSosIds.current.add(packet.envelopeId);
+        setAlerts((current) => current.some((alert) => alert.envelopeId === packet.envelopeId) ? current : [{ envelopeId: packet.envelopeId, payload, receivedAt: Date.now() }, ...current]);
+        void mesh.send(createSosAckEnvelope(packet, identity)).catch((error: unknown) => setNetworkError(error instanceof Error ? `SOS received, but acknowledgement failed: ${error.message}` : 'SOS received, but acknowledgement failed.'));
+      } catch (error) {
+        setIdentityError(error instanceof Error ? error.message : 'A nearby SOS packet could not be verified.');
+      }
+    });
+    const stopAnnouncements = transport.subscribe((event) => {
+      if (event.type === 'peer' && event.peer.status === 'connected') void peerInfo.announce(event.peer.peerId).catch(() => undefined);
+    });
+    transport.getPeers().filter((peer) => peer.status === 'connected').forEach((peer) => {
+      void peerInfo.announce(peer.peerId).catch(() => undefined);
+    });
+    return () => { stopAnnouncements(); stopMesh(); stopPeerInfo(); mesh.stop(); };
+  }, [identity, transport]);
+
   const nativeTransportReady = transportStatus === 'ready';
+  const connectPeer = async (peerId: string) => {
+    setNetworkError(null);
+    try { await transport.connect(peerId); }
+    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to connect to nearby device.'); }
+  };
+  const disconnectPeer = async (peerId: string) => {
+    setNetworkError(null);
+    try { await transport.disconnect(peerId); }
+    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to disconnect nearby device.'); }
+  };
+  const shareManifest = async () => {
+    if (!identity) return;
+    setProvisioningStatus(null);
+    try {
+      await Share.share({ title: 'Mirage Hospital public manifest', message: exportProvisioningManifest(identity) });
+      setProvisioningStatus('Public manifest opened for administrator export. It contains no private keys.');
+    } catch (error) { setProvisioningStatus(error instanceof Error ? error.message : 'Unable to export the public manifest.'); }
+  };
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.eyebrow}>MIRAGE HOSPITAL</Text>
         <Text style={styles.title}>Emergency operations dashboard</Text>
         <Text style={styles.description}>
@@ -39,26 +102,41 @@ export function HospitalDashboard() {
         </Text>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>NETWORK STATUS</Text>
-          <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : 'Native transport unavailable'}</Text>
-          <Text style={styles.cardHint}>{nativeTransportReady ? 'Awaiting encrypted SOS packets' : 'Wi-Fi Direct + UDP arrive in Phase 4'}</Text>
+          <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : 'Starting nearby transport'}</Text>
+          <Text style={styles.cardHint}>{nativeTransportReady ? 'Awaiting encrypted SOS packets' : 'Requires an Android development build and Wi-Fi Direct support.'}</Text>
+          {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
+          {peers.filter((peer) => peer.status !== 'disconnected').map((peer) => <View style={styles.peerRow} key={peer.peerId}>
+            <View style={styles.peerCopy}>
+              <Text style={styles.peerName}>{peer.displayName ?? peer.ipAddress ?? 'Nearby device'}</Text>
+              <Text style={styles.peerStatus}>{peer.status}</Text>
+            </View>
+            {peer.status === 'connected' ? <Pressable style={styles.peerButton} onPress={() => void disconnectPeer(peer.peerId)}><Text style={styles.peerButtonText}>Disconnect</Text></Pressable> : <Pressable style={styles.peerButton} onPress={() => void connectPeer(peer.peerId)} disabled={peer.status === 'connecting'}><Text style={styles.peerButtonText}>{peer.status === 'connecting' ? 'Connecting…' : 'Connect'}</Text></Pressable>}
+          </View>)}
+          {nativeTransportReady && peers.length === 0 ? <Text style={styles.muted}>No devices discovered yet.</Text> : null}
         </View>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>HOSPITAL KEY</Text>
           <Text style={styles.cardValue}>{identity ? 'Protected hospital keys ready' : identityError ? 'Key setup failed' : 'Creating protected keys…'}</Text>
           <Text style={styles.cardHint}>{identity ? `Provisioning key ID: ${publicManifest(identity).keyId}` : identityError ?? 'Private keys remain on this Android device.'}</Text>
+          <Pressable style={styles.exportButton} onPress={() => void shareManifest()} disabled={!identity}><Text style={styles.exportButtonText}>Export public manifest</Text></Pressable>
+          {provisioningStatus ? <Text style={styles.muted}>{provisioningStatus}</Text> : null}
         </View>
-        <View style={styles.emptyState}>
+        {alerts.length === 0 ? <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No active SOS alerts</Text>
-          <Text style={styles.emptyHint}>Offline discovery and encrypted SOS delivery are not configured yet.</Text>
-        </View>
-      </View>
+          <Text style={styles.emptyHint}>Verified nearby SOS alerts will appear here for this session.</Text>
+        </View> : alerts.map((alert) => <View style={styles.alert} key={alert.envelopeId}>
+          <Text style={styles.alertTitle}>{alert.payload.civilianName}</Text>
+          <Text style={styles.alertText}>{alert.payload.injuryDescription}</Text>
+          <Text style={styles.alertText}>{alert.payload.location.latitude.toFixed(6)}, {alert.payload.location.longitude.toFixed(6)} · ±{Math.round(alert.payload.location.accuracyMeters)} m</Text>
+        </View>)}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
-  container: { flex: 1, padding: 24, gap: 22, justifyContent: 'center' },
+  container: { flexGrow: 1, padding: 24, gap: 22, justifyContent: 'center' },
   eyebrow: { color: '#B91C1C', fontSize: 12, fontWeight: '800', letterSpacing: 1.4 },
   title: { color: '#0F172A', fontSize: 31, fontWeight: '800', lineHeight: 38 },
   description: { color: '#475569', fontSize: 16, lineHeight: 24 },
@@ -69,4 +147,17 @@ const styles = StyleSheet.create({
   emptyState: { backgroundColor: '#FFF1F2', borderColor: '#FECDD3', borderRadius: 16, borderWidth: 1, padding: 20, gap: 8 },
   emptyTitle: { color: '#9F1239', fontSize: 19, fontWeight: '800' },
   emptyHint: { color: '#9F1239', fontSize: 14, lineHeight: 21 },
+  alert: { backgroundColor: '#FFFFFF', borderColor: '#FCA5A5', borderRadius: 16, borderWidth: 1, gap: 7, padding: 18 },
+  alertTitle: { color: '#991B1B', fontSize: 20, fontWeight: '800' },
+  alertText: { color: '#334155', fontSize: 14, lineHeight: 20 },
+  error: { color: '#B91C1C', fontSize: 12, lineHeight: 18 },
+  peerRow: { alignItems: 'center', borderTopColor: '#E2E8F0', borderTopWidth: 1, flexDirection: 'row', gap: 10, justifyContent: 'space-between', paddingTop: 10 },
+  peerCopy: { flex: 1 },
+  peerName: { color: '#0F172A', fontSize: 14, fontWeight: '700' },
+  peerStatus: { color: '#64748B', fontSize: 12, textTransform: 'capitalize' },
+  peerButton: { backgroundColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  peerButtonText: { color: '#0F172A', fontSize: 12, fontWeight: '700' },
+  muted: { color: '#64748B', fontSize: 12 },
+  exportButton: { alignItems: 'center', backgroundColor: '#0F172A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  exportButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 });
