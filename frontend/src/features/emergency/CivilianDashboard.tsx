@@ -35,12 +35,15 @@ export function CivilianDashboard() {
   const deliveryRef = useRef<SosDeliveryService | null>(null);
   const [deliveryEntries, setDeliveryEntries] = useState<SosDeliveryEntry[]>([]);
   const [currentSosId, setCurrentSosId] = useState<string | null>(null);
+  const [group, setGroup] = useState<{ groupFormed: boolean; isGroupOwner: boolean; groupOwnerAddress?: string }>({ groupFormed: false, isGroupOwner: false });
+  const [routingTrace, setRoutingTrace] = useState<string[]>([]);
 
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
       if (event.type === 'status') setTransportStatus(event.status);
       if (event.type === 'peer') setPeers((current) => [...current.filter((peer) => peer.peerId !== event.peer.peerId), event.peer]);
       if (event.type === 'error') setNetworkError(event.error.message);
+      if (event.type === 'group') setGroup(event);
     });
     void transport.start().catch((error: unknown) => setNetworkError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
     return () => {
@@ -65,6 +68,12 @@ export function CivilianDashboard() {
     const stopPeerInfo = peerInfo.start();
     mesh.start();
     const stopDelivery = delivery.start(setDeliveryEntries);
+    const stopTrace = mesh.subscribe((event) => {
+      if (!event.packet || (event.packet.kind !== 'sos' && event.packet.kind !== 'ack')) return;
+      const hop = event.packet.hops ?? 0;
+      const detail = event.disposition === 'relayed' ? `${event.packet.kind.toUpperCase()} forwarded as hop ${hop + 1}` : `${event.packet.kind.toUpperCase()} ${event.disposition} at hop ${hop}`;
+      setRoutingTrace((current) => [`${new Date().toLocaleTimeString()} · ${detail}`, ...current].slice(0, 8));
+    });
     const stopAnnouncements = transport.subscribe((event) => {
       if (event.type === 'peer' && event.peer.status === 'connected') {
         void delivery.flush();
@@ -76,7 +85,7 @@ export function CivilianDashboard() {
     transport.getPeers().filter((peer) => peer.status === 'connected').forEach((peer) => {
       void peerInfo.announce(peer.peerId).catch(() => undefined);
     });
-    return () => { stopAnnouncements(); stopDelivery(); stopPeerInfo(); mesh.stop(); if (deliveryRef.current === delivery) deliveryRef.current = null; if (meshRef.current === mesh) meshRef.current = null; };
+    return () => { stopAnnouncements(); stopTrace(); stopDelivery(); stopPeerInfo(); mesh.stop(); if (deliveryRef.current === delivery) deliveryRef.current = null; if (meshRef.current === mesh) meshRef.current = null; };
   }, [identity, transport]);
 
   const nativeTransportReady = transportStatus === 'ready';
@@ -89,6 +98,11 @@ export function CivilianDashboard() {
     setNetworkError(null);
     try { await transport.disconnect(peerId); }
     catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to disconnect nearby device.'); }
+  };
+  const createRelayGroup = async () => {
+    setNetworkError(null);
+    try { await transport.createRelayGroup(); }
+    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to create relay group.'); }
   };
   const captureLocation = async () => {
     setLocating(true);
@@ -146,6 +160,8 @@ export function CivilianDashboard() {
           <Text style={styles.cardLabel}>NETWORK STATUS</Text>
           <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : 'Starting nearby transport'}</Text>
           <Text style={styles.cardHint}>{nativeTransportReady ? 'Awaiting nearby peers' : 'Requires an Android development build and Wi-Fi Direct support.'}</Text>
+          <Text style={styles.groupStatus}>{group.groupFormed ? group.isGroupOwner ? 'Role: relay group owner' : `Role: client${group.groupOwnerAddress ? ` · owner ${group.groupOwnerAddress}` : ''}` : 'No Wi-Fi Direct group formed'}</Text>
+          {!group.groupFormed ? <Pressable style={styles.relayButton} onPress={() => void createRelayGroup()} disabled={!nativeTransportReady}><Text style={styles.relayButtonText}>Create relay group on this phone</Text></Pressable> : null}
           {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
           {peers.filter((peer) => peer.status !== 'disconnected').map((peer) => <View style={styles.peerRow} key={peer.peerId}>
             <View style={styles.peerCopy}>
@@ -155,6 +171,12 @@ export function CivilianDashboard() {
             {peer.status === 'connected' ? <Pressable style={styles.peerButton} onPress={() => void disconnectPeer(peer.peerId)}><Text style={styles.peerButtonText}>Disconnect</Text></Pressable> : <Pressable style={styles.peerButton} onPress={() => void connectPeer(peer.peerId)} disabled={peer.status === 'connecting'}><Text style={styles.peerButtonText}>{peer.status === 'connecting' ? 'Connecting…' : 'Connect'}</Text></Pressable>}
           </View>)}
           {nativeTransportReady && peers.length === 0 ? <Text style={styles.muted}>No devices discovered yet.</Text> : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>DEMO ROUTING TRACE</Text>
+          <Text style={styles.cardHint}>{routingTrace.length ? 'Newest event first' : 'SOS and ACK hop events will appear here.'}</Text>
+          {routingTrace.map((entry, index) => <Text style={styles.traceText} key={`${entry}-${index}`}>{entry}</Text>)}
         </View>
 
         <View style={styles.card}>
@@ -217,4 +239,8 @@ const styles = StyleSheet.create({
   peerButton: { backgroundColor: '#334155', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   peerButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   muted: { color: '#94A3B8', fontSize: 12 },
+  groupStatus: { color: '#FDE68A', fontSize: 13, fontWeight: '700' },
+  relayButton: { alignItems: 'center', backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  relayButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  traceText: { color: '#CBD5E1', fontFamily: 'monospace', fontSize: 11, lineHeight: 17 },
 });

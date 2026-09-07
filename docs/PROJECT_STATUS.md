@@ -165,6 +165,10 @@ The native source has not yet been proven by successful build and physical-devic
 - Civilian can create a sealed, signed packet and pass it to the mesh transport.
 - Civilian displays local acceptance or synchronous failure state.
 - Both dashboards display discovered peers and expose connect/disconnect controls.
+- Civilian exposes explicit relay-group creation; client joins request the lowest group-owner intent.
+- Both dashboards display whether they are group owner or client and show the group-owner address when available.
+- Both dashboards include a bounded routing trace for SOS/ACK hop verification during the demo.
+- Relay broadcast excludes every endpoint sharing the inbound sender IP and deduplicates destinations by IP.
 - Hospital mesh delivery is filtered by its key ID.
 - Hospital verifies and decrypts delivered SOS packets.
 - Hospital applies the complete shared SOS validator after decryption.
@@ -187,7 +191,7 @@ The native source has not yet been proven by successful build and physical-devic
 
 ### Connection workflow requires hardware validation
 
-Both apps now display discovered devices and invoke `connect(peerId)` or disconnect through the UI. The workflow has not been compiled or exercised on physical Android hardware, and automatic connection remains intentionally undefined.
+Both apps display discovered devices and invoke `connect(peerId)` or disconnect through the UI. Civilian can explicitly create the relay group, while client connection requests use low group-owner intent. The workflow has not been compiled or exercised on physical Android hardware, and automatic connection remains intentionally undefined.
 
 ### Native UDP fix is not hardware-verified
 
@@ -317,6 +321,8 @@ Completion criterion: critical security, protocol, routing, and delivery state b
 - Test direct SOS on two phones and relay behavior on three to four phones.
 - Test duplicate, loop, queue, retry, ACK, battery, and long-running stability behavior.
 - Repeat with internet and mobile data disabled.
+
+Current local blocker: the development machine exposes Java 8 but no Android Studio, Android SDK, or `adb`. Install/configure the Android toolchain before these build and device-validation steps can begin.
 
 Completion criterion: the documented flow succeeds repeatedly on 2–4 physical Android phones without internet.
 

@@ -32,7 +32,8 @@ class MiragePeerTransportModule : Module() {
     Function("isSupported") { manager != null && channel != null }
     Function("startDiscovery") { discoverPeers(); true }
     Function("stopDiscovery") { stopDiscovery(); true }
-    Function("connect") { deviceAddress: String -> connect(deviceAddress); true }
+    Function("connect") { deviceAddress: String, groupOwnerIntent: Int -> connect(deviceAddress, groupOwnerIntent); true }
+    Function("createGroup") { createGroup(); true }
     Function("disconnect") { disconnect(); true }
     AsyncFunction("getPeers") { promise: Promise -> requestPeers(promise) }
     Function("startUdp") { port: Int -> startUdp(port) }
@@ -55,9 +56,10 @@ class MiragePeerTransportModule : Module() {
   }
   private fun discoverPeers() { withManager("discover peers") { manager, channel -> manager.discoverPeers(channel, action("discover peers")) } }
   private fun stopDiscovery() { withManager("stop discovery") { manager, channel -> manager.stopPeerDiscovery(channel, action("stop discovery")) } }
-  private fun connect(deviceAddress: String) { withManager("connect") { manager, channel -> manager.connect(channel, WifiP2pConfig().apply { this.deviceAddress = deviceAddress }, action("connect")) } }
+  private fun connect(deviceAddress: String, groupOwnerIntent: Int) { withManager("connect") { manager, channel -> manager.connect(channel, WifiP2pConfig().apply { this.deviceAddress = deviceAddress; this.groupOwnerIntent = groupOwnerIntent.coerceIn(0, 15) }, action("connect")) } }
+  private fun createGroup() { withManager("create relay group") { manager, channel -> manager.createGroup(channel, action("create relay group")) } }
   private fun disconnect() { withManager("disconnect") { manager, channel -> manager.removeGroup(channel, action("disconnect")) } }
-  private fun requestConnectionInfo() { withManager("read connection information") { manager, channel -> manager.requestConnectionInfo(channel) { info -> sendEvent("onConnection", mapOf("groupOwnerAddress" to info.groupOwnerAddress?.hostAddress, "isGroupOwner" to info.isGroupOwner)); sendEvent("onStatus", mapOf("status" to if (info.groupFormed) "connected" else "disconnected")) } } }
+  private fun requestConnectionInfo() { withManager("read connection information") { manager, channel -> manager.requestConnectionInfo(channel) { info -> sendEvent("onConnection", mapOf("groupOwnerAddress" to info.groupOwnerAddress?.hostAddress, "isGroupOwner" to info.isGroupOwner, "groupFormed" to info.groupFormed)); sendEvent("onStatus", mapOf("status" to if (info.groupFormed) "connected" else "disconnected")) } } }
   private fun startUdp(port: Int): Boolean { if (udpSocket != null) return true; return try { udpSocket = DatagramSocket(null).apply { reuseAddress = true; bind(InetSocketAddress(port)) }; udpReceiveExecutor.execute { receiveUdpPackets() }; sendEvent("onStatus", mapOf("status" to "udp-ready")); true } catch (error: Exception) { emitError("UDP socket could not bind to port $port: ${error.message}"); false } }
   private fun stopUdp() { udpSocket?.close(); udpSocket = null }
   private fun receiveUdpPackets() { val buffer = ByteArray(65_507); while (true) { val socket = udpSocket ?: return; try { val packet = DatagramPacket(buffer, buffer.size); socket.receive(packet); sendEvent("onPacket", mapOf("host" to packet.address.hostAddress, "port" to packet.port, "payload" to String(packet.data, packet.offset, packet.length, Charsets.UTF_8))) } catch (error: Exception) { if (!socket.isClosed) emitError("UDP receive failed: ${error.message}"); return } } }

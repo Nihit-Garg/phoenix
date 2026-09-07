@@ -21,9 +21,10 @@ export class WifiDirectTransport implements PeerTransport {
       }),
       NativeWifiDirect.addListener('onPeer', (peer: Peer) => this.recordPeer(peer)),
       NativeWifiDirect.addListener('onError', ({ message }) => this.emit({ type: 'error', error: new Error(message) })),
-      NativeWifiDirect.addListener('onConnection', ({ groupOwnerAddress, isGroupOwner }) => {
+      NativeWifiDirect.addListener('onConnection', ({ groupOwnerAddress, isGroupOwner, groupFormed }) => {
         this.groupOwnerAddress = !isGroupOwner ? groupOwnerAddress ?? undefined : undefined;
         if (groupOwnerAddress && !isGroupOwner) this.recordConnectedEndpoint(groupOwnerAddress, 9000);
+        this.emit({ type: 'group', groupFormed, isGroupOwner, groupOwnerAddress: groupOwnerAddress ?? undefined });
       }),
       NativeWifiDirect.addListener('onPacket', ({ host, port, payload }) => { const endpoint = this.recordConnectedEndpoint(host, port); this.emit({ type: 'message', message: { from: endpoint, bytes: new TextEncoder().encode(payload), receivedAt: Date.now() } }); }),
       NativeWifiDirect.addListener('onSendResult', ({ requestId, success, error }) => {
@@ -39,10 +40,11 @@ export class WifiDirectTransport implements PeerTransport {
     this.emit({ type: 'status', status: 'ready' });
   }
   async stop(): Promise<void> { NativeWifiDirect.stopUdp(); NativeWifiDirect.stopDiscovery(); this.subscriptions.forEach((item) => item.remove()); this.subscriptions = []; this.rejectPendingSends(new Error('Nearby transport stopped before UDP send completed.')); this.peers.clear(); this.groupOwnerAddress = undefined; this.emit({ type: 'status', status: 'stopped' }); }
-  async connect(peerId: string): Promise<void> { const peer = this.peers.get(peerId); if (peer) { const connecting = { ...peer, status: 'connecting' as const, lastSeenAt: Date.now() }; this.peers.set(peerId, connecting); this.emit({ type: 'peer', peer: connecting }); } NativeWifiDirect.connect(peerId); }
+  async connect(peerId: string): Promise<void> { const peer = this.peers.get(peerId); if (peer) { const connecting = { ...peer, status: 'connecting' as const, lastSeenAt: Date.now() }; this.peers.set(peerId, connecting); this.emit({ type: 'peer', peer: connecting }); } NativeWifiDirect.connect(peerId, 0); }
+  async createRelayGroup(): Promise<void> { NativeWifiDirect.createGroup(); }
   async disconnect(_peerId: string): Promise<void> { NativeWifiDirect.disconnect(); }
   async send(peerId: string, bytes: Uint8Array): Promise<void> { const peer = this.peers.get(peerId); const host = peer?.ipAddress ?? this.groupOwnerAddress; if (!host) throw new Error('Peer IP is unavailable until peer information is exchanged.'); await this.sendDatagram(host, peer?.port ?? 9000, new TextDecoder().decode(bytes)); }
-  async broadcast(bytes: Uint8Array, exceptPeerId?: string): Promise<void> { const recipients = [...this.peers.values()].filter((peer) => peer.peerId !== exceptPeerId && peer.ipAddress); if (!recipients.length && this.groupOwnerAddress) { await this.sendDatagram(this.groupOwnerAddress, 9000, new TextDecoder().decode(bytes)); return; } if (!recipients.length) throw new Error('No connected peer has a reachable UDP endpoint.'); await Promise.all(recipients.map((peer) => this.send(peer.peerId, bytes))); }
+  async broadcast(bytes: Uint8Array, exceptPeerId?: string): Promise<void> { const excludedIp = exceptPeerId ? this.peers.get(exceptPeerId)?.ipAddress ?? exceptPeerId : undefined; const recipients = [...this.peers.values()].filter((peer) => peer.peerId !== exceptPeerId && peer.ipAddress && peer.ipAddress !== excludedIp); if (!recipients.length && this.groupOwnerAddress && this.groupOwnerAddress !== excludedIp) { await this.sendDatagram(this.groupOwnerAddress, 9000, new TextDecoder().decode(bytes)); return; } if (!recipients.length) throw new Error('No connected peer has a reachable UDP endpoint.'); const uniqueRecipients = [...new Map(recipients.map((peer) => [peer.ipAddress, peer])).values()]; await Promise.all(uniqueRecipients.map((peer) => this.send(peer.peerId, bytes))); }
   getPeers(): readonly PeerEndpoint[] { return [...this.peers.values()]; }
   rememberPeerEndpoint(peerId: string, ipAddress: string, port: number, displayName?: string): void { const previous = this.peers.get(peerId); this.peers.delete(ipAddress); const endpoint: PeerEndpoint = { peerId, displayName, ipAddress, port, status: 'connected', lastSeenAt: Date.now() }; this.peers.set(peerId, endpoint); if (!previous || previous.ipAddress !== ipAddress || previous.port !== port || previous.status !== 'connected') this.emit({ type: 'peer', peer: endpoint }); }
   subscribe(listener: (event: TransportEvent) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }

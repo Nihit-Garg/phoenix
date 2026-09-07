@@ -4,7 +4,8 @@ export interface IncomingTransportMessage { from: PeerEndpoint; bytes: Uint8Arra
 export type TransportStatus = 'starting' | 'ready' | 'stopped' | 'unavailable';
 export type TransportEvent =
   | { type: 'peer'; peer: PeerEndpoint } | { type: 'message'; message: IncomingTransportMessage }
-  | { type: 'error'; error: Error } | { type: 'status'; status: TransportStatus };
+  | { type: 'error'; error: Error } | { type: 'status'; status: TransportStatus }
+  | { type: 'group'; groupFormed: boolean; isGroupOwner: boolean; groupOwnerAddress?: string };
 export interface PeerTransport {
   start(): Promise<void>; stop(): Promise<void>; connect(peerId: string): Promise<void>; disconnect(peerId: string): Promise<void>;
   send(peerId: string, bytes: Uint8Array): Promise<void>; broadcast(bytes: Uint8Array, exceptPeerId?: string): Promise<void>;

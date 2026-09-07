@@ -6,7 +6,8 @@ declare class MiragePeerTransportModule extends NativeModule<MiragePeerTransport
   isSupported(): boolean;
   startDiscovery(): boolean;
   stopDiscovery(): boolean;
-  connect(deviceAddress: string): boolean;
+  connect(deviceAddress: string, groupOwnerIntent: number): boolean;
+  createGroup(): boolean;
   disconnect(): boolean;
   getPeers(): Promise<Peer[]>;
   startUdp(port: number): boolean;

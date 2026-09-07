@@ -38,6 +38,16 @@
 - Defined current GPS as no older than two minutes with limited future-clock tolerance.
 - Native compilation and physical two-phone validation remain required.
 
+## 2026-09-07 one-hop demo focus
+
+- Added explicit Civilian relay-group creation backed by `WifiP2pManager.createGroup`.
+- Client connections now request low group-owner intent so the pre-created relay remains owner.
+- Added group-owner/client status and group-owner address visibility.
+- Added SOS/ACK routing traces to Civilian and Hospital dashboards.
+- Relay broadcast now excludes the inbound source IP and deduplicates UDP destinations.
+- Added `docs/ONE_HOP_DEMO.md` with the exact three-phone build, connection, SOS, and evidence flow.
+- Android compilation is blocked locally because Java 8 is the only JDK and Android Studio/SDK/ADB are not installed or discoverable.
+
 ## 2026-09-07
 
 - Removed the legacy Express/Socket.IO/WebRTC/browser prototype.

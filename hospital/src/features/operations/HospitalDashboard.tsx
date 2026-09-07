@@ -21,12 +21,15 @@ export function HospitalDashboard() {
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [provisioningStatus, setProvisioningStatus] = useState<string | null>(null);
   const acceptedSosIds = useRef(new Set<string>());
+  const [group, setGroup] = useState<{ groupFormed: boolean; isGroupOwner: boolean; groupOwnerAddress?: string }>({ groupFormed: false, isGroupOwner: false });
+  const [routingTrace, setRoutingTrace] = useState<string[]>([]);
 
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
       if (event.type === 'status') setTransportStatus(event.status);
       if (event.type === 'peer') setPeers((current) => [...current.filter((peer) => peer.peerId !== event.peer.peerId), event.peer]);
       if (event.type === 'error') setNetworkError(event.error.message);
+      if (event.type === 'group') setGroup(event);
     });
     void transport.start().catch((error: unknown) => setNetworkError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
     return () => {
@@ -50,8 +53,9 @@ export function HospitalDashboard() {
     const stopMesh = mesh.subscribe((event) => {
       const packet = event.packet;
       if (packet?.kind !== 'sos') return;
+      setRoutingTrace((current) => [`${new Date().toLocaleTimeString()} · SOS ${event.disposition} at hop ${packet.hops ?? 0}`, ...current].slice(0, 8));
       if (event.disposition === 'dropped' && event.reason === 'Duplicate packet.' && acceptedSosIds.current.has(packet.envelopeId)) {
-        void mesh.send(createSosAckEnvelope(packet, identity)).catch(() => undefined);
+        void mesh.send(createSosAckEnvelope(packet, identity)).then(() => setRoutingTrace((current) => [`${new Date().toLocaleTimeString()} · duplicate SOS re-acknowledged`, ...current].slice(0, 8))).catch(() => undefined);
         return;
       }
       if (event.disposition !== 'delivered') return;
@@ -59,7 +63,7 @@ export function HospitalDashboard() {
         const payload = decryptSosEnvelope(packet, identity);
         acceptedSosIds.current.add(packet.envelopeId);
         setAlerts((current) => current.some((alert) => alert.envelopeId === packet.envelopeId) ? current : [{ envelopeId: packet.envelopeId, payload, receivedAt: Date.now() }, ...current]);
-        void mesh.send(createSosAckEnvelope(packet, identity)).catch((error: unknown) => setNetworkError(error instanceof Error ? `SOS received, but acknowledgement failed: ${error.message}` : 'SOS received, but acknowledgement failed.'));
+        void mesh.send(createSosAckEnvelope(packet, identity)).then(() => setRoutingTrace((current) => [`${new Date().toLocaleTimeString()} · encrypted ACK transmitted`, ...current].slice(0, 8))).catch((error: unknown) => setNetworkError(error instanceof Error ? `SOS received, but acknowledgement failed: ${error.message}` : 'SOS received, but acknowledgement failed.'));
       } catch (error) {
         setIdentityError(error instanceof Error ? error.message : 'A nearby SOS packet could not be verified.');
       }
@@ -104,6 +108,7 @@ export function HospitalDashboard() {
           <Text style={styles.cardLabel}>NETWORK STATUS</Text>
           <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : 'Starting nearby transport'}</Text>
           <Text style={styles.cardHint}>{nativeTransportReady ? 'Awaiting encrypted SOS packets' : 'Requires an Android development build and Wi-Fi Direct support.'}</Text>
+          <Text style={styles.groupStatus}>{group.groupFormed ? group.isGroupOwner ? 'Connected as group owner (demo expects Hospital client)' : `Connected as client${group.groupOwnerAddress ? ` · relay ${group.groupOwnerAddress}` : ''}` : 'Connect this phone to the Civilian relay group.'}</Text>
           {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
           {peers.filter((peer) => peer.status !== 'disconnected').map((peer) => <View style={styles.peerRow} key={peer.peerId}>
             <View style={styles.peerCopy}>
@@ -113,6 +118,11 @@ export function HospitalDashboard() {
             {peer.status === 'connected' ? <Pressable style={styles.peerButton} onPress={() => void disconnectPeer(peer.peerId)}><Text style={styles.peerButtonText}>Disconnect</Text></Pressable> : <Pressable style={styles.peerButton} onPress={() => void connectPeer(peer.peerId)} disabled={peer.status === 'connecting'}><Text style={styles.peerButtonText}>{peer.status === 'connecting' ? 'Connecting…' : 'Connect'}</Text></Pressable>}
           </View>)}
           {nativeTransportReady && peers.length === 0 ? <Text style={styles.muted}>No devices discovered yet.</Text> : null}
+        </View>
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>DEMO ROUTING TRACE</Text>
+          <Text style={styles.cardHint}>{routingTrace.length ? 'Newest event first' : 'Delivered SOS hop events will appear here.'}</Text>
+          {routingTrace.map((entry, index) => <Text style={styles.traceText} key={`${entry}-${index}`}>{entry}</Text>)}
         </View>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>HOSPITAL KEY</Text>
@@ -160,4 +170,6 @@ const styles = StyleSheet.create({
   muted: { color: '#64748B', fontSize: 12 },
   exportButton: { alignItems: 'center', backgroundColor: '#0F172A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   exportButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  groupStatus: { color: '#92400E', fontSize: 13, fontWeight: '700' },
+  traceText: { color: '#475569', fontFamily: 'monospace', fontSize: 11, lineHeight: 17 },
 });
