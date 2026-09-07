@@ -20,6 +20,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "node ../scripts/patch-libsodium-cmake.mjs",
     "start": "expo start --dev-client",
     "android": "expo run:android --device",
     "provision": "node scripts/provision-hospital-manifest.mjs",

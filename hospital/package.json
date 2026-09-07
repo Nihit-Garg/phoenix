@@ -4,6 +4,7 @@
   "main": "index.ts",
   "private": true,
   "scripts": {
+    "postinstall": "node ../scripts/patch-libsodium-cmake.mjs",
     "start": "expo start --dev-client",
     "android": "expo run:android --device",
     "typecheck": "tsc --noEmit"
