@@ -11,3 +11,13 @@ ciphertext, signature
 ```
 
 SOS payloads encrypt to the hospital public key. P2P payloads encrypt to the recipient key. The sender signs the canonical header and ciphertext. Relays validate outer metadata, deduplicate, enforce max hops, update `hops` and `path`, then forward ciphertext without decrypting.
+
+## Provisioning and peer information
+
+The Hospital exports a public-only, versioned manifest containing its `keyId`
+and encryption/signing public keys. That exact manifest is embedded in a
+Civilian build during provisioning; private hospital keys never leave SecureStore.
+
+After a Wi-Fi Direct connection forms, peers exchange a versioned `PEER_INFO`
+record with peer ID, role, display name, public keys, reachable IP address, and
+UDP port `9000`. The record contains no private key or SOS plaintext.

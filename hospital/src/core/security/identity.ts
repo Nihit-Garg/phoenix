@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { crypto_box_keypair, crypto_sign_keypair } from 'react-native-libsodium';
+import { HospitalPublicManifest, serializeHospitalPublicManifest } from '../../../../backend/src/protocol/hospitalManifest';
 
 const HOSPITAL_IDENTITY_KEY = 'mirage.hospital.identity.v1';
 
@@ -10,14 +11,6 @@ export interface HospitalIdentity {
   encryptionSecretKey: string;
   signingPublicKey: string;
   signingSecretKey: string;
-  createdAt: number;
-}
-
-export interface HospitalPublicManifest {
-  version: 1;
-  keyId: string;
-  encryptionPublicKey: string;
-  signingPublicKey: string;
   createdAt: number;
 }
 
@@ -48,6 +41,11 @@ export function publicManifest(identity: HospitalIdentity): HospitalPublicManife
     signingPublicKey: identity.signingPublicKey,
     createdAt: identity.createdAt,
   };
+}
+
+/** Copy this public-only JSON into the Civilian build during provisioning. */
+export function exportProvisioningManifest(identity: HospitalIdentity): string {
+  return serializeHospitalPublicManifest(publicManifest(identity));
 }
 
 function parseIdentity(value: string): HospitalIdentity {

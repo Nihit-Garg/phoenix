@@ -1,5 +1,7 @@
 export * from './src/protocol/envelope';
 export * from './src/protocol/messages';
+export * from './src/protocol/peerInfo';
+export * from './src/protocol/hospitalManifest';
 export * from './src/mesh/routing';
 export * from './src/mesh/queue';
 export * from './src/mesh/engine';

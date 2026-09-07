@@ -13,5 +13,5 @@
 3. UDP port 9000 implementation, packet decoding, and physical-phone tests.
 4. Connect the backend mesh engine to native peer transport and persist ciphertext queue/peer metadata.
 5. Complete Civilian dispatch/history and Hospital SOS store/dashboard/action workflows.
-6. Offline Bengaluru MapLibre pack and Android device validation.
+6. Region-selectable offline MapLibre packs and Android device validation.
 7. Native crypto round-trip, routing, corruption, and multi-device test coverage.

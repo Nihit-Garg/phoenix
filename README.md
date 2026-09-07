@@ -9,7 +9,7 @@ There is no cloud/server backend, browser target, Socket.IO, or WebRTC runtime. 
 
 ## Current status
 
-The foundation, domain backend, GPS safety gate, and cryptographic helpers are implemented. Wi-Fi Direct/UDP modules are scaffolded but not yet validated on Android; real SOS delivery, Hospital operations, and the offline Bengaluru map remain in progress.
+The foundation, domain backend, GPS safety gate, and cryptographic helpers are implemented. Wi-Fi Direct/UDP modules are scaffolded but not yet validated on Android; real SOS delivery, Hospital operations, and worldwide region-selectable offline map packs remain in progress.
 
 ## Run an app on Android
 

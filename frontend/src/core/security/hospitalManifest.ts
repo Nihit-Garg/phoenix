@@ -3,8 +3,6 @@
  * device and embeds its exported public manifest into the Civilian APK.
  * A civilian build must never invent or fetch a recipient key at runtime.
  */
-export const HOSPITAL_PUBLIC_MANIFEST: {
-  keyId: string;
-  encryptionPublicKey: string;
-  signingPublicKey: string;
-} | null = null;
+import { HospitalPublicManifest } from '../../../../backend/src/protocol/hospitalManifest';
+
+export const HOSPITAL_PUBLIC_MANIFEST: HospitalPublicManifest | null = null;

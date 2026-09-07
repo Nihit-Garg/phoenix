@@ -19,7 +19,12 @@ Relays route opaque envelopes. Only the hospital device holds the hospital priva
 
 ## Map policy
 
-Coordinates are authoritative. The first map scope is a prebuilt offline Bengaluru MapLibre pack. Address text is optional metadata and never replaces GPS coordinates.
+Coordinates are authoritative worldwide. Mirage supports offline MapLibre packs
+for any selected region; packs must be downloaded or provisioned before an
+outage because the app never relies on internet access during an emergency.
+Address text is optional metadata and never replaces GPS coordinates. When no
+pack covers a coordinate, the Hospital workflow still shows precise latitude,
+longitude, and accuracy rather than inventing an address.
 
 ## Project layout
 
