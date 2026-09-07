@@ -9,7 +9,7 @@ There is no cloud/server backend, browser target, Socket.IO, or WebRTC runtime. 
 
 ## Current status
 
-Phase 0 and Phase 1 are complete: the offline architecture is locked, legacy server/WebRTC code is removed, and both apps are Android development-build projects. GPS, encryption, Wi-Fi Direct, UDP, maps, and SOS delivery are upcoming phases.
+The foundation, domain backend, GPS safety gate, and cryptographic helpers are implemented. Wi-Fi Direct/UDP modules are scaffolded but not yet validated on Android; real SOS delivery, Hospital operations, and the offline Bengaluru map remain in progress.
 
 ## Run an app on Android
 

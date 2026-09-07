@@ -11,6 +11,9 @@ export interface EncryptedEnvelope {
   hops?: number;
   maxHops?: number;
   path?: string[];
+  kind?: 'sos' | 'p2p' | 'peer-info' | 'ack';
+  to?: 'HOSPITALS' | string;
+  priority?: 'emergency' | 'normal';
 }
 
 export function envelopeSigningPayload(envelope: Omit<EncryptedEnvelope, 'signature'>): string {
@@ -18,6 +21,7 @@ export function envelopeSigningPayload(envelope: Omit<EncryptedEnvelope, 'signat
     version: envelope.version, envelopeId: envelope.envelopeId, recipientKeyId: envelope.recipientKeyId,
     senderEncryptionPublicKey: envelope.senderEncryptionPublicKey, senderSigningPublicKey: envelope.senderSigningPublicKey,
     ciphertext: envelope.ciphertext, createdAt: envelope.createdAt,
+    kind: envelope.kind, to: envelope.to, priority: envelope.priority,
   });
 }
 

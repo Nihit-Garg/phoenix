@@ -12,6 +12,9 @@ behind the transport contract.
 - `src/routing.ts` deduplicates and relays only ciphertext within a hop limit.
 - `src/sos.ts` validates the mandatory live-location SOS data.
 - `src/transport.ts` is the native transport port plus a deterministic test double.
+- `src/messages.ts` owns packet routing metadata and wire serialization.
+- `src/queue.ts` owns ciphertext-only store-and-forward queue state.
+- `src/mesh.ts` connects packet validation, deduplication, delivery, and relay to a transport adapter.
 
 The two apps import this folder directly. There is no duplicate shared domain
 implementation elsewhere in the repository.

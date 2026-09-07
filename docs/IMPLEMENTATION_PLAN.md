@@ -8,11 +8,10 @@
 
 ## Next
 
-1. Transport interface.
-2. Secure device identity and hospital provisioning.
-3. Encrypted envelope helpers and tests (helpers are in place; Android native round-trip tests remain).
-4. Wi-Fi Direct discovery.
-5. UDP peer transport.
-6. Dedupe, routing, relay, and queue integration.
-7. Mandatory live-GPS SOS flow.
-8. Hospital decryption, dashboard, and offline map.
+1. Hospital provisioning UI/export plus embedding its public manifest in a Civilian build.
+2. Android Wi-Fi Direct discovery/connect/reconnect implementation in both local Expo modules.
+3. UDP port 9000 implementation, packet decoding, and physical-phone tests.
+4. Connect the backend mesh engine to native peer transport and persist ciphertext queue/peer metadata.
+5. Complete Civilian dispatch/history and Hospital SOS store/dashboard/action workflows.
+6. Offline Bengaluru MapLibre pack and Android device validation.
+7. Native crypto round-trip, routing, corruption, and multi-device test coverage.

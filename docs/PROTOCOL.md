@@ -2,7 +2,7 @@
 
 UDP packets are versioned JSON envelopes. The planned production envelope contains a unique envelope ID, recipient key ID, sender public keys, sealed ciphertext, creation time, and a detached Ed25519 signature over all non-signature fields. Recipients must verify the signature before attempting sealed-box decryption.
 
-The current `shared/envelope.ts` schema fixes that signed-field contract before UDP wiring begins. Its ciphertext remains opaque to relays.
+The current `backend/src/envelope.ts` schema fixes that signed-field contract before UDP wiring begins. Its ciphertext remains opaque to relays.
 
 ```text
 version, id, fromPeerId, to, type, priority, timestamp, hops, maxHops, path,
