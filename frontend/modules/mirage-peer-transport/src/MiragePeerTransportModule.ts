@@ -1,9 +1,14 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
-import { MiragePeerTransportModuleEvents } from './MiragePeerTransport.types';
+import { MiragePeerTransportModuleEvents, Peer } from './MiragePeerTransport.types';
 
 declare class MiragePeerTransportModule extends NativeModule<MiragePeerTransportModuleEvents> {
-  hello(): string;
+  isSupported(): boolean;
+  startDiscovery(): boolean;
+  stopDiscovery(): boolean;
+  connect(deviceAddress: string): boolean;
+  disconnect(): boolean;
+  getPeers(): Promise<Peer[]>;
 }
 
 export default requireNativeModule<MiragePeerTransportModule>('MiragePeerTransport');

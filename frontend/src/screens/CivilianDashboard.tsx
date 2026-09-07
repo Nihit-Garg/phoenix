@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
-import { TransportStatus, UnavailableTransport } from '../../../backend/src/transport';
+import { TransportStatus } from '../../../backend/src/transport';
+import { WifiDirectTransport } from '../transport/WifiDirectTransport';
 import { CivilianIdentity, getOrCreateCivilianIdentity } from '../security/identity';
 import { LiveSosLocation, MAX_SOS_ACCURACY_METERS, isAcceptableLiveSosLocation } from '../../../backend/src/sos';
 import { HOSPITAL_PUBLIC_MANIFEST } from '../security/hospitalManifest';
@@ -11,7 +12,7 @@ import { HOSPITAL_PUBLIC_MANIFEST } from '../security/hospitalManifest';
  * discovery, encrypted identity, and SOS transport arrive in later phases.
  */
 export function CivilianDashboard() {
-  const transport = useMemo(() => new UnavailableTransport(), []);
+  const transport = useMemo(() => new WifiDirectTransport(), []);
   const [transportStatus, setTransportStatus] = useState<TransportStatus>('stopped');
   const [identity, setIdentity] = useState<CivilianIdentity | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export function CivilianDashboard() {
     const unsubscribe = transport.subscribe((event) => {
       if (event.type === 'status') setTransportStatus(event.status);
     });
-    void transport.start();
+    void transport.start().catch((error: unknown) => setIdentityError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
     return () => {
       unsubscribe();
       void transport.stop();

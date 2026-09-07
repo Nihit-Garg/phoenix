@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { TransportStatus, UnavailableTransport } from '../../backend/src/transport';
+import { TransportStatus } from '../../backend/src/transport';
+import { WifiDirectTransport } from './transport/WifiDirectTransport';
 import { HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from './security/identity';
 
 /** Phase 1 shell for the Android-only hospital administrative app. */
 export function HospitalDashboard() {
-  const transport = useMemo(() => new UnavailableTransport(), []);
+  const transport = useMemo(() => new WifiDirectTransport(), []);
   const [transportStatus, setTransportStatus] = useState<TransportStatus>('stopped');
   const [identity, setIdentity] = useState<HospitalIdentity | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
@@ -14,7 +15,7 @@ export function HospitalDashboard() {
     const unsubscribe = transport.subscribe((event) => {
       if (event.type === 'status') setTransportStatus(event.status);
     });
-    void transport.start();
+    void transport.start().catch((error: unknown) => setIdentityError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
     return () => {
       unsubscribe();
       void transport.stop();
