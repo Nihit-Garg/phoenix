@@ -20,4 +20,5 @@ Civilian build during provisioning; private hospital keys never leave SecureStor
 
 After a Wi-Fi Direct connection forms, peers exchange a versioned `PEER_INFO`
 record with peer ID, role, display name, public keys, reachable IP address, and
-UDP port `9000`. The record contains no private key or SOS plaintext.
+UDP port `9000`. The record is Ed25519-signed by the advertised signing public
+key before it is cached. It contains no private key or SOS plaintext.

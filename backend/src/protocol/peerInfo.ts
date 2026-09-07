@@ -13,6 +13,19 @@ export interface PeerInfo {
   updatedAt: number;
 }
 
+/** Peer information is public, but it must be signed to prevent key substitution. */
+export interface SignedPeerInfo { peer: PeerInfo; signature: string; }
+
+export function peerInfoSigningPayload(peer: PeerInfo): string {
+  return JSON.stringify(peer);
+}
+
+export function parseSignedPeerInfo(value: string): SignedPeerInfo {
+  const signed = JSON.parse(value) as Partial<SignedPeerInfo>;
+  if (!signed.peer || !signed.signature) throw new Error('Malformed signed peer information.');
+  return { peer: parsePeerInfo(JSON.stringify(signed.peer)), signature: signed.signature };
+}
+
 export function parsePeerInfo(value: string): PeerInfo {
   const peer = JSON.parse(value) as Partial<PeerInfo>;
   if (
