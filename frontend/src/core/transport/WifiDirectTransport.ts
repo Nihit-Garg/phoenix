@@ -18,7 +18,7 @@ export class WifiDirectTransport implements PeerTransport {
       NativeWifiDirect.addListener('onPeer', (peer: Peer) => this.recordPeer(peer)),
       NativeWifiDirect.addListener('onError', ({ message }) => this.emit({ type: 'error', error: new Error(message) })),
       NativeWifiDirect.addListener('onConnection', ({ groupOwnerAddress }) => { this.groupOwnerAddress = groupOwnerAddress ?? undefined; }),
-      NativeWifiDirect.addListener('onPacket', ({ host, port, payload }) => this.emit({ type: 'message', message: { from: { peerId: host, ipAddress: host, port, status: 'connected', lastSeenAt: Date.now() }, bytes: new TextEncoder().encode(payload), receivedAt: Date.now() } })),
+      NativeWifiDirect.addListener('onPacket', ({ host, port, payload }) => { const endpoint: PeerEndpoint = { peerId: host, ipAddress: host, port, status: 'connected', lastSeenAt: Date.now() }; this.peers.set(host, endpoint); this.emit({ type: 'peer', peer: endpoint }); this.emit({ type: 'message', message: { from: endpoint, bytes: new TextEncoder().encode(payload), receivedAt: Date.now() } }); }),
     ];
     NativeWifiDirect.startUdp(9000);
     NativeWifiDirect.startDiscovery();
