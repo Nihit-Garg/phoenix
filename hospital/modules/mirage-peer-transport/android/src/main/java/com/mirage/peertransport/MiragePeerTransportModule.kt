@@ -4,9 +4,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.location.LocationManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -30,6 +32,7 @@ class MiragePeerTransportModule : Module() {
     OnCreate { initialize() }
     OnDestroy { cleanup() }
     Function("isSupported") { manager != null && channel != null }
+    Function("isLocationModeEnabled") { isLocationModeEnabled() }
     Function("startDiscovery") { discoverPeers(); true }
     Function("stopDiscovery") { stopDiscovery(); true }
     Function("connect") { deviceAddress: String, groupOwnerIntent: Int -> connect(deviceAddress, groupOwnerIntent); true }
@@ -49,10 +52,12 @@ class MiragePeerTransportModule : Module() {
       WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> sendEvent("onStatus", mapOf("status" to if (intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1) == WifiP2pManager.WIFI_P2P_STATE_ENABLED) "ready" else "disabled"))
       WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> requestPeers(null)
       WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> requestConnectionInfo()
+      WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION -> sendEvent("onStatus", mapOf("status" to if (intent.getIntExtra(WifiP2pManager.EXTRA_DISCOVERY_STATE, -1) == WifiP2pManager.WIFI_P2P_DISCOVERY_STARTED) "discovering" else "discovery-stopped"))
     } } }
     receiverContext = context
-    val filter = IntentFilter().apply { addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION); addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION); addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION); addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION) }
-    context.registerReceiver(receiver, filter); sendEvent("onStatus", mapOf("status" to "initialized"))
+    val filter = IntentFilter().apply { addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION); addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION); addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION); addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION); addAction(WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION) }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED) else context.registerReceiver(receiver, filter)
+    sendEvent("onStatus", mapOf("status" to "initialized"))
   }
   private fun discoverPeers() { withManager("discover peers") { manager, channel -> manager.discoverPeers(channel, action("discover peers")) } }
   private fun stopDiscovery() { withManager("stop discovery") { manager, channel -> manager.stopPeerDiscovery(channel, action("stop discovery")) } }
@@ -73,7 +78,9 @@ class MiragePeerTransportModule : Module() {
   }
   private fun requestPeers(promise: Promise?) { withManager("read peers") { manager, channel -> manager.requestPeers(channel) { peers -> val result = peers.deviceList.map { device -> peerMap(device) }; result.forEach { peer -> sendEvent("onPeer", peer) }; promise?.resolve(result) } } }
   private fun withManager(operation: String, block: (WifiP2pManager, WifiP2pManager.Channel) -> Unit) { val currentManager = manager; val currentChannel = channel; if (currentManager == null || currentChannel == null) { emitError("Cannot $operation: Wi-Fi Direct is unavailable."); return }; try { block(currentManager, currentChannel) } catch (error: SecurityException) { emitError("Cannot $operation: nearby Wi-Fi permission was not granted.") } }
-  private fun action(operation: String) = object : WifiP2pManager.ActionListener { override fun onSuccess() { sendEvent("onStatus", mapOf("status" to "$operation-started")) }; override fun onFailure(reason: Int) { emitError("Wi-Fi Direct $operation failed ($reason).") } }
+  private fun isLocationModeEnabled(): Boolean { val context = appContext.reactContext?.applicationContext ?: return false; val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false; return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) locationManager.isLocationEnabled else locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) }
+  private fun action(operation: String) = object : WifiP2pManager.ActionListener { override fun onSuccess() { sendEvent("onStatus", mapOf("status" to "$operation-started")) }; override fun onFailure(reason: Int) { emitError("Wi-Fi Direct $operation failed: ${failureReason(reason)}. Retrying automatically.") } }
+  private fun failureReason(reason: Int) = when (reason) { WifiP2pManager.P2P_UNSUPPORTED -> "Wi-Fi Direct is unsupported"; WifiP2pManager.BUSY -> "Android Wi-Fi Direct is busy"; else -> "Android Wi-Fi Direct internal error" }
   private fun peerMap(device: WifiP2pDevice) = mapOf("deviceAddress" to device.deviceAddress, "deviceName" to (device.deviceName ?: "Nearby device"), "status" to when (device.status) { WifiP2pDevice.CONNECTED -> "connected"; WifiP2pDevice.INVITED -> "connecting"; WifiP2pDevice.FAILED, WifiP2pDevice.UNAVAILABLE -> "disconnected"; else -> "discovered" })
   private fun emitError(message: String) { sendEvent("onError", mapOf("message" to message)) }
   private fun cleanup() { stopUdp(); udpReceiveExecutor.shutdownNow(); udpSendExecutor.shutdownNow(); receiver?.let { receiverContext?.unregisterReceiver(it) }; receiver = null; receiverContext = null; channel = null; manager = null }

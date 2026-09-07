@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { PeerEndpoint, TransportStatus } from '../../../../backend/src/transport/PeerTransport';
 import { WifiDirectTransport } from '../../core/transport/WifiDirectTransport';
@@ -13,6 +13,13 @@ import { validateSosPayload } from '../../../../backend/src/domain/sos';
 import { SosDeliveryEntry } from '../../core/storage/SosDeliveryQueue';
 import { SosDeliveryService } from '../../core/transport/SosDeliveryService';
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Location request timed out.')), timeoutMs);
+    promise.then((value) => { clearTimeout(timeout); resolve(value); }, (error) => { clearTimeout(timeout); reject(error); });
+  });
+}
+
 /**
  * Android-only SOS screen. Delivery is nearby-only and requires both a current
  * GPS fix and a hospital public manifest embedded during provisioning.
@@ -22,8 +29,6 @@ export function CivilianDashboard() {
   const [transportStatus, setTransportStatus] = useState<TransportStatus>('stopped');
   const [identity, setIdentity] = useState<CivilianIdentity | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [injury, setInjury] = useState('');
   const [location, setLocation] = useState<LiveSosLocation | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
@@ -45,7 +50,11 @@ export function CivilianDashboard() {
       if (event.type === 'error') setNetworkError(event.error.message);
       if (event.type === 'group') setGroup(event);
     });
-    void transport.start().catch((error: unknown) => setNetworkError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
+    void (async () => {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') setLocationError('Allow precise location once so SOS can include your position.');
+      await transport.start();
+    })().catch((error: unknown) => setNetworkError(error instanceof Error ? error.message : 'Unable to start nearby discovery.'));
     return () => {
       unsubscribe();
       void transport.stop();
@@ -89,43 +98,28 @@ export function CivilianDashboard() {
   }, [identity, transport]);
 
   const nativeTransportReady = transportStatus === 'ready';
-  const connectPeer = async (peerId: string) => {
-    setNetworkError(null);
-    try { await transport.connect(peerId); }
-    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to connect to nearby device.'); }
-  };
-  const disconnectPeer = async (peerId: string) => {
-    setNetworkError(null);
-    try { await transport.disconnect(peerId); }
-    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to disconnect nearby device.'); }
-  };
-  const createRelayGroup = async () => {
-    setNetworkError(null);
-    try { await transport.createRelayGroup(); }
-    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to create relay group.'); }
-  };
-  const captureLocation = async () => {
-    setLocating(true);
-    setLocationError(null);
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') throw new Error('Location permission is required to send SOS.');
-      const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest, mayShowUserSettingsDialog: true });
-      const freshLocation = { latitude: fix.coords.latitude, longitude: fix.coords.longitude, accuracyMeters: fix.coords.accuracy ?? Number.POSITIVE_INFINITY, capturedAt: fix.timestamp };
-      if (!isAcceptableLiveSosLocation(freshLocation)) throw new Error(`Live GPS accuracy must be ${MAX_SOS_ACCURACY_METERS} m or better. Try again outdoors.`);
-      setLocation(freshLocation);
-    } catch (error) {
-      setLocation(null);
-      setLocationError(error instanceof Error ? error.message : 'Unable to obtain a current GPS position.');
-    } finally { setLocating(false); }
-  };
   const sendSos = async () => {
     setSosState(null);
     setSendingSos(true);
+    setLocating(true);
+    setLocationError(null);
     try {
       if (!identity) throw new Error('Protected device identity is not ready.');
-      if (!location || !isAcceptableLiveSosLocation(location)) throw new Error(`Capture a GPS position less than ${MAX_SOS_LOCATION_AGE_MS / 60_000} minutes old before sending SOS.`);
-      const payload = { type: 'sos' as const, civilianName: name, injuryDescription: injury, location };
+      if (!HOSPITAL_PUBLIC_MANIFEST) throw new Error('This Civilian build is not linked to a Hospital. Provision and rebuild the APK first.');
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') throw new Error('Allow precise location to send an SOS.');
+      if (!(await Location.hasServicesEnabledAsync())) throw new Error('Turn on Location in Android Quick Settings, then press SOS again.');
+      let fix: Location.LocationObject | null = null;
+      try {
+        fix = await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High, mayShowUserSettingsDialog: true }), 15_000);
+      } catch {
+        fix = await Location.getLastKnownPositionAsync({ maxAge: MAX_SOS_LOCATION_AGE_MS, requiredAccuracy: MAX_SOS_ACCURACY_METERS });
+      }
+      if (!fix) throw new Error('No GPS fix is available yet. Move near a window or outdoors and press SOS again.');
+      const freshLocation = { latitude: fix.coords.latitude, longitude: fix.coords.longitude, accuracyMeters: fix.coords.accuracy ?? Number.POSITIVE_INFINITY, capturedAt: fix.timestamp };
+      if (!isAcceptableLiveSosLocation(freshLocation)) throw new Error(`The available location is older than ${MAX_SOS_LOCATION_AGE_MS / 60_000} minutes or less accurate than ${MAX_SOS_ACCURACY_METERS} m.`);
+      setLocation(freshLocation);
+      const payload = { type: 'sos' as const, civilianName: 'Mirage user', injuryDescription: 'Emergency assistance requested through Mirage.', location: freshLocation };
       validateSosPayload(payload);
       const delivery = deliveryRef.current;
       if (!delivery) throw new Error('Nearby delivery service is still starting. Try again in a moment.');
@@ -134,8 +128,10 @@ export function CivilianDashboard() {
       const entry = await delivery.send(packet);
       setSosState(entry.state === 'awaiting-ack' ? 'SOS transmitted. Waiting for a verified Hospital acknowledgement.' : entry.error ?? 'SOS encrypted and queued for nearby delivery.');
     } catch (error) {
-      setSosState(error instanceof Error ? error.message : 'Unable to send SOS.');
-    } finally { setSendingSos(false); }
+      const message = error instanceof Error ? error.message : 'Unable to send SOS.';
+      setSosState(message);
+      if (/location|GPS/i.test(message)) setLocationError(message);
+    } finally { setSendingSos(false); setLocating(false); }
   };
   const currentDelivery = deliveryEntries.find((entry) => entry.packet.envelopeId === currentSosId);
   const deliveryMessage = currentDelivery ? ({
@@ -147,100 +143,76 @@ export function CivilianDashboard() {
     failed: currentDelivery.error ?? 'SOS delivery failed after the maximum retry count.',
     expired: currentDelivery.error ?? 'SOS expired before acknowledgement.',
   } satisfies Record<SosDeliveryEntry['state'], string>)[currentDelivery.state] : sosState;
+  const activePeerCount = peers.filter((peer) => peer.status === 'connected').length;
+  const networkLabel = group.groupFormed
+    ? `Nearby emergency network connected${activePeerCount ? ` · ${activePeerCount} peer${activePeerCount === 1 ? '' : 's'}` : ''}`
+    : nativeTransportReady ? 'Finding and connecting to nearby Mirage phones…' : 'Starting nearby emergency network…';
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.eyebrow}>MIRAGE CIVILIAN</Text>
-        <Text style={styles.title}>Offline emergency network</Text>
-        <Text style={styles.description}>
-          SOS stays on nearby Android devices using Wi-Fi Direct and encrypted UDP packets.
-        </Text>
-
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>NETWORK STATUS</Text>
-          <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : 'Starting nearby transport'}</Text>
-          <Text style={styles.cardHint}>{nativeTransportReady ? 'Awaiting nearby peers' : 'Requires an Android development build and Wi-Fi Direct support.'}</Text>
-          <Text style={styles.groupStatus}>{group.groupFormed ? group.isGroupOwner ? 'Role: relay group owner' : `Role: client${group.groupOwnerAddress ? ` · owner ${group.groupOwnerAddress}` : ''}` : 'No Wi-Fi Direct group formed'}</Text>
-          {!group.groupFormed ? <Pressable style={styles.relayButton} onPress={() => void createRelayGroup()} disabled={!nativeTransportReady}><Text style={styles.relayButtonText}>Create relay group on this phone</Text></Pressable> : null}
-          {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
-          {peers.filter((peer) => peer.status !== 'disconnected').map((peer) => <View style={styles.peerRow} key={peer.peerId}>
-            <View style={styles.peerCopy}>
-              <Text style={styles.peerName}>{peer.displayName ?? peer.ipAddress ?? 'Nearby device'}</Text>
-              <Text style={styles.peerStatus}>{peer.status}</Text>
-            </View>
-            {peer.status === 'connected' ? <Pressable style={styles.peerButton} onPress={() => void disconnectPeer(peer.peerId)}><Text style={styles.peerButtonText}>Disconnect</Text></Pressable> : <Pressable style={styles.peerButton} onPress={() => void connectPeer(peer.peerId)} disabled={peer.status === 'connecting'}><Text style={styles.peerButtonText}>{peer.status === 'connecting' ? 'Connecting…' : 'Connect'}</Text></Pressable>}
-          </View>)}
-          {nativeTransportReady && peers.length === 0 ? <Text style={styles.muted}>No devices discovered yet.</Text> : null}
+        <View style={styles.header}>
+          <Text style={styles.welcome}>Welcome back,</Text>
+          <Text style={styles.userName}>Mirage user</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>DEMO ROUTING TRACE</Text>
-          <Text style={styles.cardHint}>{routingTrace.length ? 'Newest event first' : 'SOS and ACK hop events will appear here.'}</Text>
-          {routingTrace.map((entry, index) => <Text style={styles.traceText} key={`${entry}-${index}`}>{entry}</Text>)}
+        <Text style={styles.title}>Are you in an emergency?</Text>
+        <Text style={styles.description}>Press the button below. Your location and encrypted SOS will be sent automatically.</Text>
+
+        <View style={styles.sosOuterHalo}>
+          <View style={styles.sosInnerHalo}>
+            <Pressable style={({ pressed }) => [styles.sosButton, pressed && styles.sosButtonPressed, sendingSos && styles.disabledButton]} onPress={() => void sendSos()} disabled={!identity || sendingSos} accessibilityRole="button" accessibilityLabel="Send emergency SOS">
+              {sendingSos ? <ActivityIndicator color="#FFFFFF" size="large" /> : <Text style={styles.sosLabel}>SOS</Text>}
+            </Pressable>
+          </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>DEVICE IDENTITY</Text>
-          <Text style={styles.cardValue}>{identity ? 'Protected device keys ready' : identityError ? 'Identity setup failed' : 'Securing device keys…'}</Text>
-          <Text style={styles.cardHint}>{identityError ?? 'Private keys are stored in Android Keystore.'}</Text>
+        <View style={styles.locationCard}>
+          <Text style={styles.cardLabel}>YOUR CURRENT LOCATION</Text>
+          <Text style={styles.cardValue}>{locating ? 'Getting the best available GPS fix…' : location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : 'Captured automatically when you press SOS'}</Text>
+          {location ? <Text style={styles.cardHint}>Accuracy approximately {Math.round(location.accuracyMeters)} metres</Text> : null}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>HOSPITAL PROVISIONING</Text>
-          <Text style={styles.cardValue}>{HOSPITAL_PUBLIC_MANIFEST ? 'Hospital key provisioned' : 'Not provisioned'}</Text>
-          <Text style={styles.cardHint}>{HOSPITAL_PUBLIC_MANIFEST ? `Recipient key ID: ${HOSPITAL_PUBLIC_MANIFEST.keyId}` : 'An administrator must embed a Hospital public manifest before distributing this APK.'}</Text>
+        <View style={styles.networkRow}>
+          <View style={[styles.statusDot, group.groupFormed ? styles.statusConnected : styles.statusSearching]} />
+          <Text style={styles.networkText}>{networkLabel}</Text>
         </View>
 
-        <View style={styles.sosPanel}>
-          <Text style={styles.sosLabel}>SOS</Text>
-          <Text style={styles.sosHint}>A current GPS fix is mandatory. Manual addresses and previous locations are never used.</Text>
-          <TextInput value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#94A3B8" style={styles.input} />
-          <TextInput value={injury} onChangeText={setInjury} placeholder="Injury / emergency" placeholderTextColor="#94A3B8" multiline style={[styles.input, styles.multiline]} />
-          <Pressable style={styles.secondaryButton} onPress={() => void captureLocation()} disabled={locating}>
-            {locating ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>{location ? `GPS ready (${Math.round(location.accuracyMeters)} m)` : 'Capture live GPS'}</Text>}
-          </Pressable>
-          {locationError ? <Text style={styles.error}>{locationError}</Text> : null}
-          <Pressable style={[styles.sosButton, (!identity || !location || !HOSPITAL_PUBLIC_MANIFEST || sendingSos) && styles.disabledButton]} onPress={() => void sendSos()} disabled={!identity || !location || !HOSPITAL_PUBLIC_MANIFEST || sendingSos}>
-            {sendingSos ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Send encrypted SOS</Text>}
-          </Pressable>
-          <Text style={currentDelivery?.state === 'delivered' ? styles.success : styles.disabledHint}>{deliveryMessage ?? (!HOSPITAL_PUBLIC_MANIFEST ? 'SOS dispatch is blocked: this APK has no provisioned hospital public key.' : !nativeTransportReady ? 'No peer is connected. SOS can still be encrypted and queued for retry.' : 'Ready for encrypted delivery.')}</Text>
-        </View>
+        {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
+        {locationError ? <Text style={styles.error}>{locationError}</Text> : null}
+        {identityError ? <Text style={styles.error}>{identityError}</Text> : null}
+        {!HOSPITAL_PUBLIC_MANIFEST ? <Text style={styles.error}>This APK is not provisioned with a Hospital key. SOS cannot be encrypted until it is rebuilt after provisioning.</Text> : null}
+        <Text style={currentDelivery?.state === 'delivered' ? styles.success : styles.deliveryStatus}>{deliveryMessage ?? (HOSPITAL_PUBLIC_MANIFEST ? 'Ready. Nearby connection and relay setup happen automatically.' : 'Waiting for a provisioned Civilian build.')}</Text>
+        {routingTrace[0] ? <Text style={styles.traceText}>{routingTrace[0]}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#101827' },
-  container: { flexGrow: 1, padding: 24, gap: 22, justifyContent: 'center' },
-  eyebrow: { color: '#FCA5A5', fontSize: 12, fontWeight: '800', letterSpacing: 1.4 },
-  title: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', lineHeight: 38 },
-  description: { color: '#CBD5E1', fontSize: 16, lineHeight: 24 },
-  card: { backgroundColor: '#1E293B', borderColor: '#334155', borderWidth: 1, borderRadius: 16, padding: 18, gap: 6 },
-  cardLabel: { color: '#94A3B8', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  cardValue: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
-  cardHint: { color: '#86EFAC', fontSize: 13 },
-  sosPanel: { borderColor: '#F87171', borderRadius: 20, borderWidth: 2, marginTop: 12, padding: 20, gap: 12 },
-  sosLabel: { color: '#FCA5A5', fontSize: 34, fontWeight: '900', textAlign: 'center' },
-  sosHint: { color: '#CBD5E1', fontSize: 12, lineHeight: 18, marginTop: 6, textAlign: 'center' },
-  input: { backgroundColor: '#1E293B', borderColor: '#475569', borderRadius: 10, borderWidth: 1, color: '#FFFFFF', padding: 12 },
-  multiline: { minHeight: 72, textAlignVertical: 'top' },
-  secondaryButton: { alignItems: 'center', backgroundColor: '#2563EB', borderRadius: 10, minHeight: 46, justifyContent: 'center', padding: 10 },
-  sosButton: { alignItems: 'center', backgroundColor: '#DC2626', borderRadius: 10, minHeight: 50, justifyContent: 'center', padding: 10 },
+  safeArea: { flex: 1, backgroundColor: '#F8E8E9' },
+  container: { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 28, alignItems: 'center' },
+  header: { alignSelf: 'stretch', marginBottom: 28 },
+  welcome: { color: '#8A7778', fontSize: 13 },
+  userName: { color: '#191314', fontSize: 18, fontWeight: '700', marginTop: 2 },
+  title: { color: '#171112', fontSize: 25, fontWeight: '900', textAlign: 'center' },
+  description: { color: '#9B8587', fontSize: 14, lineHeight: 21, marginTop: 12, maxWidth: 300, textAlign: 'center' },
+  sosOuterHalo: { alignItems: 'center', backgroundColor: '#FBEFF0', borderRadius: 118, height: 236, justifyContent: 'center', marginVertical: 30, width: 236 },
+  sosInnerHalo: { alignItems: 'center', backgroundColor: '#F8D6D8', borderRadius: 94, height: 188, justifyContent: 'center', width: 188 },
+  sosButton: { alignItems: 'center', backgroundColor: '#EF5959', borderRadius: 76, elevation: 8, height: 152, justifyContent: 'center', shadowColor: '#9C3030', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.28, shadowRadius: 8, width: 152 },
+  sosButtonPressed: { transform: [{ scale: 0.96 }] },
+  sosLabel: { color: '#FFFFFF', fontSize: 34, fontWeight: '900' },
   disabledButton: { opacity: 0.55 },
-  buttonText: { color: '#FFFFFF', fontWeight: '800' },
-  disabledHint: { color: '#FCA5A5', fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  error: { color: '#FCA5A5', fontSize: 12, lineHeight: 18 },
-  success: { color: '#86EFAC', fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  peerRow: { alignItems: 'center', borderTopColor: '#334155', borderTopWidth: 1, flexDirection: 'row', gap: 10, justifyContent: 'space-between', paddingTop: 10 },
-  peerCopy: { flex: 1 },
-  peerName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  peerStatus: { color: '#94A3B8', fontSize: 12, textTransform: 'capitalize' },
-  peerButton: { backgroundColor: '#334155', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  peerButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  muted: { color: '#94A3B8', fontSize: 12 },
-  groupStatus: { color: '#FDE68A', fontSize: 13, fontWeight: '700' },
-  relayButton: { alignItems: 'center', backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-  relayButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  traceText: { color: '#CBD5E1', fontFamily: 'monospace', fontSize: 11, lineHeight: 17 },
+  locationCard: { alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderRadius: 8, elevation: 3, minHeight: 92, padding: 16, shadowColor: '#3A2224', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 3 },
+  cardLabel: { color: '#504344', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  cardValue: { color: '#33292A', fontSize: 14, fontWeight: '600', marginTop: 8 },
+  cardHint: { color: '#8A7778', fontSize: 12, marginTop: 5 },
+  networkRow: { alignItems: 'center', alignSelf: 'stretch', flexDirection: 'row', marginTop: 20 },
+  statusDot: { borderRadius: 5, height: 10, marginRight: 9, width: 10 },
+  statusConnected: { backgroundColor: '#36A269' },
+  statusSearching: { backgroundColor: '#E4A23A' },
+  networkText: { color: '#665556', flex: 1, fontSize: 12, lineHeight: 17 },
+  deliveryStatus: { color: '#705F60', fontSize: 12, lineHeight: 18, marginTop: 14, textAlign: 'center' },
+  error: { color: '#B4232D', fontSize: 12, lineHeight: 18, marginTop: 10, textAlign: 'center' },
+  success: { color: '#18794E', fontSize: 13, fontWeight: '700', lineHeight: 19, marginTop: 14, textAlign: 'center' },
+  traceText: { color: '#8A7778', fontFamily: 'monospace', fontSize: 10, lineHeight: 15, marginTop: 8, textAlign: 'center' },
 });

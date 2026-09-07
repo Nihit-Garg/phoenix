@@ -15,4 +15,4 @@ Key loss or rotation requires a new `keyId`, new hospital provisioning, and a re
 
 ## SOS location rule
 
-An SOS must include current `latitude`, `longitude`, `accuracyMeters`, and `capturedAt`. If live GPS cannot reach the accepted accuracy, sending is blocked. No last-known-location or manual-address fallback is permitted for SOS.
+An SOS must include `latitude`, `longitude`, `accuracyMeters`, and `capturedAt`. Mirage first requests a fresh high-accuracy fix. If that request times out, it may use a device location no older than five minutes and accurate to 250 metres so an indoor emergency is not silently blocked. Manual and reverse-geocoded addresses are never substituted for coordinates.

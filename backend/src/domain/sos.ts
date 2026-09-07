@@ -1,5 +1,7 @@
-export const MAX_SOS_ACCURACY_METERS = 30;
-export const MAX_SOS_LOCATION_AGE_MS = 2 * 60 * 1000;
+// An emergency must not be blocked just because the user is indoors. A fresh,
+// coarse fix is still safer and more actionable than refusing to send at all.
+export const MAX_SOS_ACCURACY_METERS = 250;
+export const MAX_SOS_LOCATION_AGE_MS = 5 * 60 * 1000;
 
 export interface LiveSosLocation { latitude: number; longitude: number; accuracyMeters: number; capturedAt: number; }
 export interface SosPayload { type: 'sos'; civilianName: string; injuryDescription: string; location: LiveSosLocation; }

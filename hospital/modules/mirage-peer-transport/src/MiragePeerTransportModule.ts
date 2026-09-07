@@ -4,6 +4,7 @@ import { MiragePeerTransportModuleEvents, Peer } from './MiragePeerTransport.typ
 
 declare class MiragePeerTransportModule extends NativeModule<MiragePeerTransportModuleEvents> {
   isSupported(): boolean;
+  isLocationModeEnabled(): boolean;
   startDiscovery(): boolean;
   stopDiscovery(): boolean;
   connect(deviceAddress: string, groupOwnerIntent: number): boolean;

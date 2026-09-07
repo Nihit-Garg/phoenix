@@ -48,6 +48,17 @@
 - Added `docs/ONE_HOP_DEMO.md` with the exact three-phone build, connection, SOS, and evidence flow.
 - Android compilation is blocked locally because Java 8 is the only JDK and Android Studio/SDK/ADB are not installed or discoverable.
 
+## 2026-09-07 first-device feedback
+
+- Confirmed that the standalone Hospital and Civilian Android applications compile and launch on a physical Samsung device after adding Windows CMake path normalization and Metro shared-folder configuration.
+- Added the missing Android network-state permissions required by the documented Wi-Fi Direct workflow.
+- Added an explicit Location Mode readiness check because Android requires Location Mode for peer discovery and peer-list requests.
+- Replaced manual group creation and peer buttons with automatic discovery retries and automatic connection negotiation. Civilian devices request group-owner preference; Hospital devices request client preference.
+- Replaced the Civilian diagnostic/form screen with a single prominent SOS action modeled on the supplied emergency UI reference.
+- SOS now requests permissions at first launch and captures the best available current location when the SOS button is pressed.
+- Relaxed the indoor GPS gate from 30 metres/two minutes to 250 metres/five minutes, with a bounded current-fix attempt and a recent-location fallback.
+- Physical three-phone validation of automatic group formation, UDP endpoint exchange, relay delivery, and ACK return remains required.
+
 ## 2026-09-07
 
 - Removed the legacy Express/Socket.IO/WebRTC/browser prototype.

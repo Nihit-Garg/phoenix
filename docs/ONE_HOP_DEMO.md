@@ -47,24 +47,22 @@ npm run provision -- C:\path\to\hospital-manifest.json
 6. Build the Civilian Android app.
 7. Install that same provisioned Civilian APK on Phone 1 and Phone 2.
 
-## Connection order
+## Automatic connection
 
 1. Open all three apps and grant requested permissions.
-2. On Phone 2, press **Create relay group on this phone**.
-3. Wait until Phone 2 displays **Role: relay group owner**.
-4. On Phone 1, locate Phone 2 in the peer list and press **Connect**.
-5. Wait until Phone 1 displays that it is a client and shows the group-owner address.
-6. On Phone 3, locate Phone 2 and press **Connect**.
-7. Wait until Phone 3 displays **Connected as client**.
-8. On Phone 2, confirm that both clients have appeared and sent signed peer information.
+2. Ensure Wi-Fi and Android Location Mode are on for all three phones.
+3. Leave every app in the foreground. Each app restarts peer discovery every eight seconds until a group forms.
+4. Civilian phones automatically initiate connections with high group-owner intent; the Hospital automatically requests client intent.
+5. Android elects a Civilian coordinator/group owner. No relay-group or peer-selection action is required from a user.
+6. Wait for the Civilian status to show **Nearby emergency network connected** and for Hospital to show a connected group.
 
-Do not press **Create relay group** on Phone 1. The Hospital app does not expose that control because Phone 3 must be a client for this topology.
+The elected Civilian coordinator may be either Phone 1 or Phone 2. If Phone 2 is elected, the demonstration shows the intended one-relay hop. If Phone 1 is elected, the Hospital may receive the SOS directly while Phone 2 remains available as a relay.
 
 ## SOS demonstration
 
-1. On Phone 1, enter a name and emergency description.
-2. Capture live GPS. Accuracy must be 30 metres or better and the fix must be less than two minutes old when the SOS envelope is created.
-3. Press **Send encrypted SOS**.
+1. On Phone 1, press the large **SOS** button.
+2. Mirage automatically captures a current GPS fix, allowing up to 250 metre accuracy and a five-minute recent fix fallback when a new indoor fix cannot be obtained within 15 seconds.
+3. Mirage supplies the default emergency description and creates the encrypted packet without additional form input.
 4. Phone 1 should show sending and then awaiting Hospital acknowledgement.
 5. Phone 2's routing trace should show `SOS forwarded as hop 1`.
 6. Phone 3 should show `SOS delivered at hop 1` and display the decrypted emergency.
@@ -77,8 +75,8 @@ Do not press **Create relay group** on Phone 1. The Hospital app does not expose
 For the first successful run, record screenshots or logs showing:
 
 - the same Hospital key ID on Phone 3 and both Civilian builds;
-- Phone 2 acting as group owner;
-- Phone 1 and Phone 3 acting as clients;
+- the automatically elected Civilian group owner;
+- the other phones' automatically negotiated roles;
 - Phone 2 forwarding SOS as hop 1;
 - Phone 3 delivering SOS at hop 1;
 - correct decrypted name, emergency, coordinates, and accuracy;
@@ -87,7 +85,7 @@ For the first successful run, record screenshots or logs showing:
 
 ## Current limitations
 
-- Kotlin/autolinking behavior is not yet compiled or device-tested.
+- Native compilation and standalone launch are confirmed on one Samsung phone; three-phone Wi-Fi Direct behavior is not yet confirmed.
 - Android may expose manufacturer-specific Wi-Fi Direct behavior that requires native adjustments.
 - Hospital alerts remain session-only.
 - The Hospital ACK is sent immediately and is not durably queued.

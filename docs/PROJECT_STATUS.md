@@ -18,8 +18,8 @@ Locked product decisions:
 - Emergency operation must not depend on internet, cloud services, Express, Socket.IO, WebRTC, or a browser.
 - Nearby connectivity uses Android Wi-Fi Direct and UDP port `9000`.
 - Every SOS requires newly captured latitude, longitude, accuracy, and capture time.
-- GPS accuracy must be 30 metres or better.
-- Last-known location, manual addresses, and reverse-geocoded address fallbacks are prohibited for SOS.
+- SOS prefers a fresh GPS fix and accepts accuracy up to 250 metres so indoor emergencies are not rejected solely because satellite accuracy is poor.
+- A location no older than five minutes may be used if a fresh fix cannot be obtained within 15 seconds; manual addresses and reverse-geocoded addresses are not authoritative SOS locations.
 - Coordinates are authoritative worldwide.
 - Maps use region-selectable offline packs installed before an outage.
 - Encryption uses X25519 sealed boxes; authentication uses Ed25519 signatures through libsodium.
@@ -44,7 +44,7 @@ Locked product decisions:
 1. Both apps request the Android nearby-Wi-Fi or location permission required by the Android version.
 2. Both apps verify that Wi-Fi Direct is supported and bind UDP port `9000`.
 3. Discovery locates nearby devices.
-4. A user or an approved automatic policy initiates a connection.
+4. Mirage retries discovery every eight seconds and automatically initiates a connection when a peer appears.
 5. Android creates a Wi-Fi Direct group and selects a group owner.
 6. The non-owner learns the group owner's local IP address.
 7. Devices exchange signed `PEER_INFO` records.
@@ -54,10 +54,10 @@ Locked product decisions:
 
 ### 2.3 SOS creation and sending
 
-1. The Civilian enters their name and emergency description.
-2. Mirage obtains a new highest-accuracy Android GPS fix.
+1. The Civilian presses one SOS button; no connection, relay, location, or emergency form setup is required.
+2. Mirage requests a high-accuracy Android location and falls back to a recent bounded-accuracy fix if the current request times out.
 3. Mirage validates coordinates, accuracy, and capture time.
-4. Sending remains disabled until identity, transport, manifest, form data, and GPS are valid.
+4. Identity and Hospital provisioning remain mandatory; unavailable transport queues encrypted SOS for retry instead of requiring peer setup.
 5. The payload is sealed with the provisioned Hospital X25519 public key.
 6. The envelope is signed with the Civilian Ed25519 private key.
 7. It is addressed to `HOSPITALS` and the provisioned Hospital key ID.
@@ -115,10 +115,10 @@ Locked product decisions:
 - Shared SOS payload types and validation exist.
 - Name and emergency-description validation exist.
 - Coordinate, accuracy, and timestamp validation exist.
-- The maximum accepted GPS accuracy is 30 metres.
-- A captured SOS location is currently considered fresh for two minutes and future-dated fixes beyond five seconds of clock tolerance are rejected.
-- Civilian UI requests a fresh highest-accuracy location.
-- No prohibited location or address fallback exists.
+- The maximum accepted GPS accuracy is 250 metres.
+- A captured SOS location is considered fresh for five minutes and future-dated fixes beyond five seconds of clock tolerance are rejected.
+- Civilian requests location permission at first launch and captures location automatically on SOS press.
+- A recent device location may be used after a 15-second current-fix timeout; manual and reverse-geocoded addresses remain excluded.
 
 ### Protocol, routing, and queue foundations
 
@@ -322,7 +322,7 @@ Completion criterion: critical security, protocol, routing, and delivery state b
 - Test duplicate, loop, queue, retry, ACK, battery, and long-running stability behavior.
 - Repeat with internet and mobile data disabled.
 
-Current local blocker: the development machine exposes Java 8 but no Android Studio, Android SDK, or `adb`. Install/configure the Android toolchain before these build and device-validation steps can begin.
+Current validation state: standalone Android builds now compile and launch on the separate Android Studio laptop. Automatic multi-phone discovery/group negotiation and end-to-end UDP SOS/ACK delivery still require a fresh physical three-phone run with the rebuilt APKs.
 
 Completion criterion: the documented flow succeeds repeatedly on 2–4 physical Android phones without internet.
 
