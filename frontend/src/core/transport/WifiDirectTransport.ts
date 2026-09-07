@@ -1,6 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native';
-import NativeWifiDirect, { Peer } from '../../modules/mirage-peer-transport';
-import { PeerEndpoint, PeerTransport, TransportEvent } from '../../../backend/src/transport';
+import NativeWifiDirect, { Peer } from '../../../modules/mirage-peer-transport';
+import { PeerEndpoint, PeerTransport, TransportEvent } from '../../../../backend/src/transport/PeerTransport';
 
 /** Wi-Fi Direct discovery adapter. UDP packet I/O is added in Part 2. */
 export class WifiDirectTransport implements PeerTransport {

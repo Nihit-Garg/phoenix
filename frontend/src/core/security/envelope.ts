@@ -1,8 +1,8 @@
 import * as Crypto from 'expo-crypto';
 import { crypto_box_seal, crypto_sign_detached, from_base64 } from 'react-native-libsodium';
-import { envelopeSigningPayload } from '../../../backend/src/envelope';
-import { MiragePacket } from '../../../backend/src/messages';
-import { SosPayload } from '../../../backend/src/sos';
+import { envelopeSigningPayload } from '../../../../backend/src/protocol/envelope';
+import { MiragePacket } from '../../../../backend/src/protocol/messages';
+import { SosPayload } from '../../../../backend/src/domain/sos';
 import { CivilianIdentity } from './identity';
 import { HOSPITAL_PUBLIC_MANIFEST } from './hospitalManifest';
 

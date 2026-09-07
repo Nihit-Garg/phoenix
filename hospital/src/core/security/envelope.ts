@@ -1,6 +1,6 @@
 import { crypto_box_seal_open, crypto_sign_verify_detached, from_base64 } from 'react-native-libsodium';
-import { EncryptedEnvelope, envelopeSigningPayload } from '../../../backend/src/envelope';
-import { SosPayload } from '../../../backend/src/sos';
+import { EncryptedEnvelope, envelopeSigningPayload } from '../../../../backend/src/protocol/envelope';
+import { SosPayload } from '../../../../backend/src/domain/sos';
 import { HospitalIdentity } from './identity';
 
 /** Rejects forged, corrupt, and incorrectly addressed messages before decrypting. */

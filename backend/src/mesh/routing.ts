@@ -1,4 +1,4 @@
-import { EncryptedEnvelope } from './envelope';
+import { EncryptedEnvelope } from '../protocol/envelope';
 
 export const DEFAULT_MAX_HOPS = 3;
 export class EnvelopeDedupeCache {

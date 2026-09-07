@@ -29,4 +29,4 @@ npm run android
 
 After installation, use `npm start` for JavaScript updates. Rebuild after changing a native dependency or `app.json`.
 
-Read [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md), [protocol](docs/PROTOCOL.md), and [the plan](docs/IMPLEMENTATION_PLAN.md).
+Read [architecture](docs/ARCHITECTURE.md), the [codebase guide](docs/CODEBASE.md), [security](docs/SECURITY.md), [protocol](docs/PROTOCOL.md), and [the plan](docs/IMPLEMENTATION_PLAN.md).

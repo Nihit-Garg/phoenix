@@ -1,4 +1,4 @@
-import { MiragePacket } from './messages';
+import { MiragePacket } from '../protocol/messages';
 
 export type QueueState = 'queued' | 'sending' | 'delivered' | 'failed';
 export interface QueuedPacket { packet: MiragePacket; state: QueueState; attempts: number; updatedAt: number; error?: string; }

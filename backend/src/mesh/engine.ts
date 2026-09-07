@@ -1,6 +1,6 @@
-import { MiragePacket, parsePacket, serializePacket } from './messages';
+import { MiragePacket, parsePacket, serializePacket } from '../protocol/messages';
 import { EnvelopeDedupeCache, relayEnvelope } from './routing';
-import { PeerTransport, TransportEvent } from './transport';
+import { PeerTransport, TransportEvent } from '../transport/PeerTransport';
 
 export type MeshDisposition = 'delivered' | 'relayed' | 'dropped';
 export interface MeshEvent { disposition: MeshDisposition; packet?: MiragePacket; reason?: string; }

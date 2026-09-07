@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
-import { TransportStatus } from '../../../backend/src/transport';
-import { WifiDirectTransport } from '../transport/WifiDirectTransport';
-import { CivilianIdentity, getOrCreateCivilianIdentity } from '../security/identity';
-import { LiveSosLocation, MAX_SOS_ACCURACY_METERS, isAcceptableLiveSosLocation } from '../../../backend/src/sos';
-import { HOSPITAL_PUBLIC_MANIFEST } from '../security/hospitalManifest';
+import { TransportStatus } from '../../../../backend/src/transport/PeerTransport';
+import { WifiDirectTransport } from '../../core/transport/WifiDirectTransport';
+import { CivilianIdentity, getOrCreateCivilianIdentity } from '../../core/security/identity';
+import { LiveSosLocation, MAX_SOS_ACCURACY_METERS, isAcceptableLiveSosLocation } from '../../../../backend/src/domain/sos';
+import { HOSPITAL_PUBLIC_MANIFEST } from '../../core/security/hospitalManifest';
 
 /**
  * Phase 1 shell. It intentionally has no server or WebRTC state: device

@@ -25,5 +25,6 @@ Coordinates are authoritative. The first map scope is a prebuilt offline Bengalu
 
 - `frontend/` is the Civilian Android app.
 - `hospital/` is the Hospital Android app.
-- `backend/` is the offline shared domain layer: transport contracts, envelope/routing rules, and SOS validation. It is not a server.
-- No backend directory remains.
+- `backend/` is the offline shared domain layer: protocol, mesh routing, SOS validation, and transport contracts. It is not a server.
+- `frontend/modules/` and `hospital/modules/` contain each app's Expo-autolinked Android native transport module.
+- See `docs/CODEBASE.md` for the ownership map.

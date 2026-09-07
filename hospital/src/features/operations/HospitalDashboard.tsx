@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { TransportStatus } from '../../backend/src/transport';
-import { WifiDirectTransport } from './transport/WifiDirectTransport';
-import { HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from './security/identity';
+import { TransportStatus } from '../../../../backend/src/transport/PeerTransport';
+import { WifiDirectTransport } from '../../core/transport/WifiDirectTransport';
+import { HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from '../../core/security/identity';
 
 /** Phase 1 shell for the Android-only hospital administrative app. */
 export function HospitalDashboard() {
