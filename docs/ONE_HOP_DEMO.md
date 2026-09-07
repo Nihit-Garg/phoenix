@@ -7,7 +7,7 @@ Phone 1 — Mirage Civilian sender
               |
               | encrypted SOS, hop 0
               v
-Phone 2 — Mirage Civilian relay and Wi-Fi Direct group owner
+Phone 2 — Mirage Civilian relay
               |
               | opaque relay, hop 1
               v
@@ -26,8 +26,8 @@ All three phones must remain in the foreground for the initial demonstration. In
 - Android Studio and Android SDK
 - JDK 17 or the supported Android Studio bundled JBR
 - Android platform tools and `adb`
-- Three USB-debugging-enabled Android phones with Wi-Fi Direct support
-- Nearby Wi-Fi and location permissions granted
+- Three USB-debugging-enabled Android phones with compatible Google Play services
+- Nearby devices, Bluetooth, and location permissions granted
 - A real Hospital public manifest provisioned into the Civilian APK
 
 The development machine checked on 2026-09-07 currently has Java 8 and does not expose Android Studio, Android SDK, or `adb`. Native builds cannot be validated until that toolchain is installed and configured.
@@ -50,13 +50,12 @@ npm run provision -- C:\path\to\hospital-manifest.json
 ## Automatic connection
 
 1. Open all three apps and grant requested permissions.
-2. Ensure Wi-Fi and Android Location Mode are on for all three phones.
-3. Leave every app in the foreground. Each app restarts peer discovery every eight seconds until a group forms.
-4. Civilian phones automatically initiate connections with high group-owner intent; the Hospital automatically requests client intent.
-5. Android elects a Civilian coordinator/group owner. No relay-group or peer-selection action is required from a user.
-6. Wait for the Civilian status to show **Nearby emergency network connected** and for Hospital to show a connected group.
+2. Ensure Wi-Fi, Bluetooth, and Android Location Mode are on for all three phones.
+3. Leave every app in the foreground. Every phone advertises and discovers through Nearby Connections `P2P_CLUSTER` automatically.
+4. Mirage deterministically chooses one side to initiate each discovered link and auto-accepts the matching connection. No relay group, pairing code, or peer-selection action is required for this demo build.
+5. Wait until Phone 1 is connected to Phone 2 and Phone 2 is connected to Phone 3.
 
-The elected Civilian coordinator may be either Phone 1 or Phone 2. If Phone 2 is elected, the demonstration shows the intended one-relay hop. If Phone 1 is elected, the Hospital may receive the SOS directly while Phone 2 remains available as a relay.
+For a guaranteed one-hop demonstration, place Phone 1 and Phone 3 far enough apart that they do not form a direct Nearby link while Phone 2 remains within radio range of both. If all three phones connect directly, the Hospital can receive hop 0 first; a later relayed copy is correctly rejected as a duplicate.
 
 ## SOS demonstration
 
@@ -75,8 +74,7 @@ The elected Civilian coordinator may be either Phone 1 or Phone 2. If Phone 2 is
 For the first successful run, record screenshots or logs showing:
 
 - the same Hospital key ID on Phone 3 and both Civilian builds;
-- the automatically elected Civilian group owner;
-- the other phones' automatically negotiated roles;
+- Phone 1 connected to Phone 2 and Phone 2 connected to Phone 3;
 - Phone 2 forwarding SOS as hop 1;
 - Phone 3 delivering SOS at hop 1;
 - correct decrypted name, emergency, coordinates, and accuracy;
@@ -85,9 +83,9 @@ For the first successful run, record screenshots or logs showing:
 
 ## Current limitations
 
-- Native compilation and standalone launch are confirmed on one Samsung phone; three-phone Wi-Fi Direct behavior is not yet confirmed.
-- Android may expose manufacturer-specific Wi-Fi Direct behavior that requires native adjustments.
+- Native compilation and standalone launch of the earlier build are confirmed on one Samsung phone; the new Nearby Connections build and three-phone routing still require physical validation.
+- Google Play services must be installed and compatible on every participating phone.
 - Hospital alerts remain session-only.
 - The Hospital ACK is sent immediately and is not durably queued.
 - Background execution is not supported for the initial demo.
-- The demo targets one relay hop inside one Wi-Fi Direct group, not sequential two-group store-and-forward.
+- The demo targets one foreground relay hop across Nearby connections; background relaying is not yet supported.

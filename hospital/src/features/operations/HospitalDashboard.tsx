@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { PeerEndpoint, TransportStatus } from '../../../../backend/src/transport/PeerTransport';
-import { WifiDirectTransport } from '../../core/transport/WifiDirectTransport';
+import { NearbyConnectionsTransport } from '../../core/transport/NearbyConnectionsTransport';
 import { exportProvisioningManifest, HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from '../../core/security/identity';
 import { MeshEngine } from '../../../../backend/src/mesh/engine';
 import { PeerInfoExchange } from '../../core/transport/PeerInfoExchange';
@@ -12,7 +12,7 @@ interface ReceivedSos { envelopeId: string; payload: SosPayload; receivedAt: num
 
 /** Phase 1 shell for the Android-only hospital administrative app. */
 export function HospitalDashboard() {
-  const transport = useMemo(() => new WifiDirectTransport(), []);
+  const transport = useMemo(() => new NearbyConnectionsTransport('Mirage Hospital'), []);
   const [transportStatus, setTransportStatus] = useState<TransportStatus>('stopped');
   const [identity, setIdentity] = useState<HospitalIdentity | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
@@ -78,16 +78,6 @@ export function HospitalDashboard() {
   }, [identity, transport]);
 
   const nativeTransportReady = transportStatus === 'ready';
-  const connectPeer = async (peerId: string) => {
-    setNetworkError(null);
-    try { await transport.connect(peerId); }
-    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to connect to nearby device.'); }
-  };
-  const disconnectPeer = async (peerId: string) => {
-    setNetworkError(null);
-    try { await transport.disconnect(peerId); }
-    catch (error) { setNetworkError(error instanceof Error ? error.message : 'Unable to disconnect nearby device.'); }
-  };
   const shareManifest = async () => {
     if (!identity) return;
     setProvisioningStatus(null);
@@ -102,20 +92,19 @@ export function HospitalDashboard() {
         <Text style={styles.eyebrow}>MIRAGE HOSPITAL</Text>
         <Text style={styles.title}>Emergency operations dashboard</Text>
         <Text style={styles.description}>
-          This offline Android app will receive encrypted SOS alerts directly from nearby civilian devices.
+          This offline Android app receives encrypted SOS alerts through automatically connected nearby Mirage devices.
         </Text>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>NETWORK STATUS</Text>
           <Text style={styles.cardValue}>{nativeTransportReady ? 'Nearby transport ready' : 'Starting nearby transport'}</Text>
-          <Text style={styles.cardHint}>{nativeTransportReady ? 'Awaiting encrypted SOS packets' : 'Requires an Android development build and Wi-Fi Direct support.'}</Text>
-          <Text style={styles.groupStatus}>{group.groupFormed ? group.isGroupOwner ? 'Connected as group owner (demo expects Hospital client)' : `Connected as client${group.groupOwnerAddress ? ` · relay ${group.groupOwnerAddress}` : ''}` : 'Connect this phone to the Civilian relay group.'}</Text>
+          <Text style={styles.cardHint}>{nativeTransportReady ? 'Advertising and discovering automatically through Google Nearby Connections.' : 'Requires an Android development build and Google Play services.'}</Text>
+          <Text style={styles.groupStatus}>{group.groupFormed ? `${peers.filter((peer) => peer.status === 'connected').length} nearby connection${peers.filter((peer) => peer.status === 'connected').length === 1 ? '' : 's'} active` : 'Searching for nearby Mirage phones automatically.'}</Text>
           {networkError ? <Text style={styles.error}>{networkError}</Text> : null}
           {peers.filter((peer) => peer.status !== 'disconnected').map((peer) => <View style={styles.peerRow} key={peer.peerId}>
             <View style={styles.peerCopy}>
               <Text style={styles.peerName}>{peer.displayName ?? peer.ipAddress ?? 'Nearby device'}</Text>
-              <Text style={styles.peerStatus}>{peer.status}</Text>
             </View>
-            {peer.status === 'connected' ? <Pressable style={styles.peerButton} onPress={() => void disconnectPeer(peer.peerId)}><Text style={styles.peerButtonText}>Disconnect</Text></Pressable> : <Pressable style={styles.peerButton} onPress={() => void connectPeer(peer.peerId)} disabled={peer.status === 'connecting'}><Text style={styles.peerButtonText}>{peer.status === 'connecting' ? 'Connecting…' : 'Connect'}</Text></Pressable>}
+            <Text style={styles.peerStatus}>{peer.status === 'connected' ? 'Automatic link active' : peer.status}</Text>
           </View>)}
           {nativeTransportReady && peers.length === 0 ? <Text style={styles.muted}>No devices discovered yet.</Text> : null}
         </View>
@@ -165,8 +154,6 @@ const styles = StyleSheet.create({
   peerCopy: { flex: 1 },
   peerName: { color: '#0F172A', fontSize: 14, fontWeight: '700' },
   peerStatus: { color: '#64748B', fontSize: 12, textTransform: 'capitalize' },
-  peerButton: { backgroundColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  peerButtonText: { color: '#0F172A', fontSize: 12, fontWeight: '700' },
   muted: { color: '#64748B', fontSize: 12 },
   exportButton: { alignItems: 'center', backgroundColor: '#0F172A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   exportButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },

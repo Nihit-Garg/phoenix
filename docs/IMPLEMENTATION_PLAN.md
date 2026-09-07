@@ -4,12 +4,12 @@
 
 - Phase 0: Android-only, two-app, offline-only architecture; map, GPS, and security policies.
 - Phase 1: Civilian and Hospital Android app shells, unique package IDs, Wi-Fi/location permission declarations, Expo development-client configuration, and legacy server/WebRTC removal.
-- Phase 2: Shared transport contract, Android Wi-Fi Direct/UDP adapters in both apps, and a deterministic in-memory transport for protocol/routing tests.
+- Phase 2: Shared transport contract, primary Android Nearby Connections adapters in both apps, preserved Wi-Fi Direct/UDP fallback source, and a deterministic in-memory transport for protocol/routing tests.
 
 ## Next
 
 1. Hospital provisioning UI/export plus embedding its public manifest in a Civilian build.
-2. Physical-phone validation of Wi-Fi Direct discovery, connection lifecycle, and UDP port 9000.
+2. Fresh Android builds and physical-phone validation of automatic Nearby discovery, connection lifecycle, and byte-payload transfer.
 3. ACK, retry/reconnect, ciphertext-only persistent queue, and peer expiry.
 4. Protected durable Hospital SOS storage plus Civilian SOS history and delivery status.
 5. Complete peers, messaging, settings, Hospital action workflows, and notifications.

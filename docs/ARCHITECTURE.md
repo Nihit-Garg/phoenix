@@ -5,14 +5,15 @@
 - Android-only MVP.
 - Separate Civilian and Hospital/Admin apps.
 - Offline-only delivery with no cloud or server dependency.
-- Wi-Fi Direct discovers and connects nearby phones.
-- UDP port 9000 carries Mirage envelopes.
+- Google Nearby Connections discovers and links nearby phones without internet.
+- `P2P_CLUSTER` permits multiple direct nearby links; Mirage's mesh engine relays packets between those links.
+- Wi-Fi Direct/UDP remains as an inactive fallback adapter.
 - Every SOS requires live latitude and longitude.
 
 ## Target flow
 
 ```text
-Civilian UI -> GPS -> encrypted envelope -> routing/dedupe -> UDP -> Wi-Fi Direct peers -> Hospital decrypts -> Dashboard
+Civilian UI -> GPS -> encrypted envelope -> routing/dedupe -> Nearby byte payload -> connected peers -> Hospital decrypts -> Dashboard
 ```
 
 Relays route opaque envelopes. Only the hospital device holds the hospital private key needed to read SOS content.

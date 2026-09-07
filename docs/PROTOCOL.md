@@ -1,6 +1,6 @@
 # Offline protocol
 
-UDP packets are versioned JSON envelopes. The planned production envelope contains a unique envelope ID, recipient key ID, sender public keys, sealed ciphertext, creation time, and a detached Ed25519 signature over all non-signature fields. Recipients must verify the signature before attempting sealed-box decryption.
+Nearby byte payloads contain versioned JSON envelopes. The envelope contains a unique envelope ID, recipient key ID, sender public keys, sealed ciphertext, creation time, and a detached Ed25519 signature over all non-signature fields. Recipients must verify the signature before attempting sealed-box decryption.
 
 The current `backend/src/protocol/envelope.ts` schema fixes that signed-field contract. Its ciphertext remains opaque to relays.
 
@@ -18,10 +18,7 @@ The Hospital exports a public-only, versioned manifest containing its `keyId`
 and encryption/signing public keys. That exact manifest is embedded in a
 Civilian build during provisioning; private hospital keys never leave SecureStore.
 
-After a Wi-Fi Direct connection forms, peers exchange a versioned `PEER_INFO`
-record with peer ID, role, display name, public keys, reachable IP address, and
-UDP port `9000`. The record is Ed25519-signed by the advertised signing public
-key before it is cached. It contains no private key or SOS plaintext.
+After a Nearby connection forms, peers exchange a versioned `PEER_INFO` record with peer ID, role, display name, and public keys. The current version retains legacy endpoint fields for wire compatibility, but routing uses the observed Nearby endpoint ID rather than an IP socket. The record is Ed25519-signed by the advertised signing public key before it is cached. It contains no private key or SOS plaintext.
 
 ## SOS acknowledgement and retry
 

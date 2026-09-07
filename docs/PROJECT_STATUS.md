@@ -16,7 +16,7 @@ Mirage consists of two Android-only Expo/React Native applications and one share
 Locked product decisions:
 
 - Emergency operation must not depend on internet, cloud services, Express, Socket.IO, WebRTC, or a browser.
-- Nearby connectivity uses Android Wi-Fi Direct and UDP port `9000`.
+- Primary nearby connectivity uses Google Nearby Connections `P2P_CLUSTER`; the earlier Android Wi-Fi Direct/UDP adapter remains as an inactive fallback.
 - Every SOS requires newly captured latitude, longitude, accuracy, and capture time.
 - SOS prefers a fresh GPS fix and accepts accuracy up to 250 metres so indoor emergencies are not rejected solely because satellite accuracy is poor.
 - A location no older than five minutes may be used if a fresh fix cannot be obtained within 15 seconds; manual addresses and reverse-geocoded addresses are not authoritative SOS locations.
@@ -41,16 +41,13 @@ Locked product decisions:
 
 ### 2.2 Nearby connection
 
-1. Both apps request the Android nearby-Wi-Fi or location permission required by the Android version.
-2. Both apps verify that Wi-Fi Direct is supported and bind UDP port `9000`.
-3. Discovery locates nearby devices.
-4. Mirage retries discovery every eight seconds and automatically initiates a connection when a peer appears.
-5. Android creates a Wi-Fi Direct group and selects a group owner.
-6. The non-owner learns the group owner's local IP address.
-7. Devices exchange signed `PEER_INFO` records.
-8. Receivers verify the signature before persisting public peer metadata.
-9. The actual UDP source IP overrides any address advertised inside the peer record.
-10. Mirage reconciles the Android device address, UDP endpoint, and public-key peer ID into one logical peer.
+1. Both apps request the Android Nearby devices, Bluetooth, or location permissions required by the Android version.
+2. Both apps verify compatible Google Play services, then advertise and discover with the same service ID and `P2P_CLUSTER` strategy.
+3. A deterministic endpoint-name election chooses one connection initiator and prevents simultaneous request races.
+4. The other endpoint accepts automatically; users do not create groups or choose peers.
+5. Devices exchange signed `PEER_INFO` records over the established Nearby byte-payload link.
+6. Receivers verify the signature before persisting public peer metadata.
+7. Mirage associates the temporary Nearby endpoint ID with the stable public-key peer ID.
 
 ### 2.3 SOS creation and sending
 
@@ -62,7 +59,7 @@ Locked product decisions:
 6. The envelope is signed with the Civilian Ed25519 private key.
 7. It is addressed to `HOSPITALS` and the provisioned Hospital key ID.
 8. The ciphertext packet is placed in a persistent delivery queue.
-9. It is transmitted to connected peers over UDP.
+9. It is transmitted as a Nearby byte payload to connected peers.
 
 ### 2.4 Relay and delivery
 
@@ -131,20 +128,18 @@ Locked product decisions:
 - A deterministic in-memory transport exists for future tests.
 - A memory queue contract exists, but it is not connected to runtime delivery.
 
-### Wi-Fi Direct and UDP source
+### Nearby Connections transport source
 
-- Both Kotlin modules initialize Wi-Fi Direct and check device support.
-- Discovery, peer events, connect, disconnect, and connection-information functions exist.
-- Lifecycle registration and cleanup exist.
-- UDP bind, receive, send, error, and cleanup source exists for port `9000`.
-- UDP receive and send now use separate native executors, preventing the permanent receive loop from starving outgoing packets.
-- Every outgoing datagram now carries a request ID and emits a correlated native success or failure result.
-- TypeScript waits for the native result and rejects sends that fail or exceed the five-second timeout.
-- Transport startup now fails instead of reporting ready when UDP port `9000` cannot be bound.
-- Both TypeScript adapters expose status, peers, messages, send, and broadcast behavior.
-- Incoming UDP source addresses are used for inbound endpoints.
+- Both apps contain an Expo-autolinked Kotlin module using Google Play services Nearby Connections `19.5.0`.
+- Both modules use the same service ID and `P2P_CLUSTER` strategy.
+- Advertising, discovery, deterministic connection initiation, automatic acceptance, disconnect, byte-payload receive/send, correlated send results, and cleanup are implemented.
+- Both TypeScript adapters request the Android-version-specific Nearby, Bluetooth, and Location permissions.
+- Endpoint events are translated into the shared transport contract, and sends reject on native failure or a ten-second timeout.
+- Stable Mirage public-key identities are reconciled with temporary Nearby endpoint IDs.
+- The Civilian and Hospital dashboards select Nearby Connections as the primary transport.
+- The previous Wi-Fi Direct/UDP source remains unchanged as an inactive fallback.
 
-The native source has not yet been proven by successful build and physical-device tests.
+Expo autolinking, TypeScript, and Android JavaScript bundle generation pass. The new Kotlin source has not yet been compiled or exercised on the physical test phones.
 
 ### Signed peer exchange
 
@@ -152,11 +147,11 @@ The native source has not yet been proven by successful build and physical-devic
 - Both apps can sign and announce their public peer information.
 - Both apps verify peer signatures before persistence.
 - Peer directories store only validated public metadata in AsyncStorage.
-- UDP source IP overrides the advertised address.
+- The observed Nearby endpoint ID overrides the legacy address field before local routing metadata is persisted.
 - Both dashboards start peer exchange after identity initialization.
 - Connected endpoints trigger announcements.
-- Repeated UDP packets do not continuously create new connected-peer events.
-- A verified public-key peer ID is now associated with its observed UDP endpoint for targeted sends.
+- Repeated Nearby packets do not continuously create new connected-peer events.
+- A verified public-key peer ID is associated with its observed Nearby endpoint for targeted sends.
 
 ### Initial runtime/SOS integration
 
@@ -164,11 +159,11 @@ The native source has not yet been proven by successful build and physical-devic
 - Civilian performs full shared SOS validation before encryption.
 - Civilian can create a sealed, signed packet and pass it to the mesh transport.
 - Civilian displays local acceptance or synchronous failure state.
-- Both dashboards display discovered peers and expose connect/disconnect controls.
-- Civilian exposes explicit relay-group creation; client joins request the lowest group-owner intent.
-- Both dashboards display whether they are group owner or client and show the group-owner address when available.
+- Both dashboards start advertising, discovery, and connection automatically after permissions are granted.
+- Civilian now presents the one-button SOS experience without relay-group, peer-selection, or manual GPS controls.
+- Hospital shows the automatically connected Nearby peers as read-only status.
 - Both dashboards include a bounded routing trace for SOS/ACK hop verification during the demo.
-- Relay broadcast excludes every endpoint sharing the inbound sender IP and deduplicates destinations by IP.
+- Relay broadcast excludes the inbound Nearby endpoint and deduplicates physical endpoints.
 - Hospital mesh delivery is filtered by its key ID.
 - Hospital verifies and decrypts delivered SOS packets.
 - Hospital applies the complete shared SOS validator after decryption.
@@ -189,17 +184,13 @@ The native source has not yet been proven by successful build and physical-devic
 
 ## 4. Partial work and known blockers
 
-### Connection workflow requires hardware validation
+### Nearby workflow requires hardware validation
 
-Both apps display discovered devices and invoke `connect(peerId)` or disconnect through the UI. Civilian can explicitly create the relay group, while client connection requests use low group-owner intent. The workflow has not been compiled or exercised on physical Android hardware, and automatic connection remains intentionally undefined.
-
-### Native UDP fix is not hardware-verified
-
-Separate native receive/send executors and correlated send-result events are implemented. A real Android build is still required to confirm the Expo bridge event shape, socket behavior, and lifecycle handling.
+Automatic advertising, discovery, connection election, acceptance, byte-payload transfer, and endpoint cleanup are implemented. A rebuilt Android APK is still required to compile the new Kotlin module and validate Google Play services behavior across the actual 3–4 test phones.
 
 ### “Sent” is not confirmed transmission or delivery
 
-TypeScript now waits for a correlated native socket-send result, so local success means Android's UDP socket accepted the datagram. UDP remains connectionless: this still does not prove Hospital receipt. A signed Hospital ACK is required for confirmed delivery.
+TypeScript waits for a correlated Nearby send result, so local success means Google Play services accepted the payload transfer. This still does not prove that the Hospital verified and processed the SOS. A signed Hospital ACK is required for confirmed delivery.
 
 ### Provisioning requires a real Hospital device and APK build
 
@@ -207,7 +198,7 @@ The Hospital now exposes an administrator share action and Civilian has a valida
 
 ### Peer identities are not fully reconciled
 
-Verified peer information now maps the stable public-key peer ID to the observed UDP endpoint. The original Wi-Fi Direct device-address entry can still coexist because Android does not directly expose a reliable mapping between that address and the remote client IP. Further cleanup and device testing are required.
+Verified peer information maps the stable public-key peer ID to the observed Nearby endpoint ID. Endpoint IDs are temporary and must be rebuilt after reconnection; physical testing is required to confirm all reconnect and simultaneous-discovery cases.
 
 ### Hospital validation is implemented but untested on-device
 
@@ -215,7 +206,7 @@ The Hospital checks signature, target key, decryption, payload structure, non-em
 
 ### Alerts and routing are session-only
 
-Hospital alerts disappear on restart. Plaintext SOS data cannot safely be placed in AsyncStorage. Relay dedupe is also in memory, and the ciphertext queue is not connected, so store-and-forward does not yet work.
+Hospital alerts disappear on restart. Plaintext SOS data cannot safely be placed in AsyncStorage. Relay dedupe is also in memory. The Civilian sender has a ciphertext retry queue, but intermediate relays do not yet durably store ciphertext, so true disconnected store-and-forward is incomplete.
 
 ### Reliable delivery needs hardware and automated validation
 
@@ -225,12 +216,12 @@ ACK creation, encryption, signing, routing, validation, SOS correlation, retry s
 
 ### Phase A: Executable two-device connection
 
-- Physically validate the separate native UDP receive/send executors.
-- Physically validate correlated native send results and timeout/error propagation.
-- Physically validate nearby-peer lists and connect/disconnect controls.
+- Compile the new Nearby Kotlin module in both Android apps.
+- Physically validate correlated Nearby send results and timeout/error propagation.
+- Physically validate automatic advertising, discovery, initiation, acceptance, and reconnect behavior.
 - Refine discovering, connecting, connected, disconnected, and failed states from device observations.
-- Define any automatic-connection policy.
-- Reconcile device address, endpoint, and Mirage peer ID.
+- Tune the implemented automatic-connection policy from physical-device observations.
+- Validate Nearby endpoint and Mirage public-key identity reconciliation.
 - Reannounce after reconnect or endpoint changes.
 - Add peer ping/last-seen behavior and expire stale peers.
 - Add automated coverage for full validation after Hospital decryption.
@@ -315,14 +306,14 @@ Completion criterion: critical security, protocol, routing, and delivery state b
 - Verify Expo autolinking in both apps.
 - Test permissions across supported Android versions.
 - Test Wi-Fi disabled, permission denial, unsupported devices, and app restarts.
-- Test discovery and connection on at least two phones with reversed group-owner roles.
-- Test UDP binding, sending, backgrounding, reconnection, and socket cleanup.
+- Test automatic Nearby discovery and connection on at least two phones and mixed Android versions.
+- Test byte-payload sending, backgrounding, reconnection, and endpoint cleanup.
 - Test real-device libsodium and live GPS behavior.
 - Test direct SOS on two phones and relay behavior on three to four phones.
 - Test duplicate, loop, queue, retry, ACK, battery, and long-running stability behavior.
 - Repeat with internet and mobile data disabled.
 
-Current validation state: standalone Android builds now compile and launch on the separate Android Studio laptop. Automatic multi-phone discovery/group negotiation and end-to-end UDP SOS/ACK delivery still require a fresh physical three-phone run with the rebuilt APKs.
+Current validation state: the earlier standalone Android builds compile and launch on the separate Android Studio laptop. The newly added Nearby Connections native dependency requires fresh builds. Automatic multi-phone linking and end-to-end SOS/ACK delivery still require a physical three-phone run with those rebuilt APKs.
 
 Completion criterion: the documented flow succeeds repeatedly on 2–4 physical Android phones without internet.
 
@@ -345,14 +336,16 @@ These checks pass:
 ```text
 frontend: npm exec tsc -- --noEmit
 hospital: npm exec tsc -- --noEmit
+frontend + hospital: Expo Android bundle export
+frontend + hospital: Expo Android native-module autolinking resolution
 git diff --check
 ```
 
 These outcomes have not yet been demonstrated:
 
 - Native compilation and installation of the current Kotlin modules
-- Two-phone Wi-Fi Direct connection
-- UDP transmission from the current native implementation
+- Two-phone automatic Nearby connection
+- Nearby byte-payload transmission from the current native implementation
 - Real-device signed peer exchange
 - Real-device SOS encryption, transmission, verification, and decryption
 - Hospital acknowledgement
@@ -364,25 +357,22 @@ Passing TypeScript validation is not proof of native connectivity or emergency r
 
 ## 7. Recommended immediate order
 
-1. Fix native UDP threading and send-result behavior.
-2. Add nearby-device connection UI and state.
-3. Complete peer identity/endpoint reconciliation.
-4. Add full Hospital SOS validation.
-5. Build both apps and prove signed peer exchange on two phones.
-6. Export a real Hospital manifest and embed it in a Civilian test build.
-7. Prove one direct encrypted SOS end to end.
-8. Validate ACK/retry behavior and add durable Hospital ACK queue plus peer expiry.
-9. Prove queued delivery and a three-device relay.
-10. Implement protected Hospital operations and Civilian history.
-11. Add offline maps, notifications, and remaining screens.
-12. Complete automated, multi-device, security, and release testing.
+1. Build both apps with the new Nearby dependency and prove automatic signed peer exchange on two phones.
+2. Export a real Hospital manifest and embed it in a Civilian test build.
+3. Prove one direct encrypted SOS and verified ACK end to end.
+4. Position three phones for sender → relay → Hospital connectivity and prove a one-hop SOS plus return ACK.
+5. Tune reconnect/endpoint expiry and add a durable Hospital ACK queue.
+6. Add durable relay storage for disconnected store-and-forward behavior.
+7. Implement protected Hospital operations and Civilian history.
+8. Add offline maps, notifications, and remaining screens.
+9. Complete automated, multi-device, security, and release testing.
 
 ## 8. Definition of done
 
 Mirage is complete only when all of these are true:
 
 - A real Hospital manifest is embedded in a Civilian release build.
-- Fresh Android phones can discover, connect, authenticate, and exchange UDP packets offline.
+- Fresh Android phones with compatible Google Play services can discover, connect, authenticate, and exchange Nearby payloads offline.
 - Civilian cannot send without valid current GPS and a provisioned key.
 - A valid SOS is encrypted, signed, transmitted, verified, decrypted, saved, displayed, and acknowledged.
 - Civilian reports delivery only after a valid Hospital ACK.

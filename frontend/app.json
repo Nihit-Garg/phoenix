@@ -18,7 +18,10 @@
         "ACCESS_WIFI_STATE",
         "CHANGE_WIFI_STATE",
         "ACCESS_NETWORK_STATE",
-        "CHANGE_NETWORK_STATE"
+        "CHANGE_NETWORK_STATE",
+        "BLUETOOTH_ADVERTISE",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { PeerEndpoint, TransportStatus } from '../../../../backend/src/transport/PeerTransport';
-import { WifiDirectTransport } from '../../core/transport/WifiDirectTransport';
+import { NearbyConnectionsTransport } from '../../core/transport/NearbyConnectionsTransport';
 import { CivilianIdentity, getOrCreateCivilianIdentity } from '../../core/security/identity';
 import { LiveSosLocation, MAX_SOS_ACCURACY_METERS, MAX_SOS_LOCATION_AGE_MS, isAcceptableLiveSosLocation } from '../../../../backend/src/domain/sos';
 import { HOSPITAL_PUBLIC_MANIFEST } from '../../core/security/hospitalManifest';
@@ -25,7 +25,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
  * GPS fix and a hospital public manifest embedded during provisioning.
  */
 export function CivilianDashboard() {
-  const transport = useMemo(() => new WifiDirectTransport(), []);
+  const transport = useMemo(() => new NearbyConnectionsTransport('Mirage Civilian'), []);
   const [transportStatus, setTransportStatus] = useState<TransportStatus>('stopped');
   const [identity, setIdentity] = useState<CivilianIdentity | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);

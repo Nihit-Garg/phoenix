@@ -1,14 +1,12 @@
 # Android development builds
 
-Mirage needs custom Android development builds. Expo Go and Expo Web are not supported runtimes for the future Wi-Fi Direct, UDP, MapLibre, and native crypto modules.
+Mirage needs custom Android development builds. Expo Go and Expo Web cannot load the local Nearby Connections or native crypto modules.
 
-## Wi-Fi Direct validation
+## Nearby Connections validation
 
-Part 1 adds local Android Expo modules to both apps. Rebuild each development
-build after native changes, grant the Nearby Wi-Fi permission, and test peer
-discovery plus connection with two physical Android phones. The same build now
-binds UDP port 9000; verify incoming and outgoing packets after a Wi-Fi Direct
-group forms. Expo Go cannot load these modules.
+Both apps contain an Expo-autolinked Android module backed by Google Play services Nearby Connections `19.5.0`. Rebuild each development build after native changes. On first launch, grant Nearby devices, Bluetooth, and Location permissions. Each app advertises, discovers, and connects automatically using `P2P_CLUSTER`; no group creation or peer-selection screen is required.
+
+Nearby Connections does not need internet during the SOS demonstration, but every participating phone must have compatible Google Play services already installed. The old Wi-Fi Direct/UDP module remains available in source as a fallback and is not selected by the current dashboards.
 
 Prerequisites are Node.js 22.13+, Android Studio/SDK, and a USB-debugging-enabled Android phone. Run `npm run android` in `frontend/` or `hospital/`; after installation, run `npm start` for JavaScript updates. Rebuild when native dependencies or `app.json` change.
 
