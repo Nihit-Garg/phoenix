@@ -5,6 +5,7 @@
 - Private keys belong only in Expo SecureStore, backed on Android by Android Keystore.
 - AsyncStorage may contain public profiles, cached peer keys, and ciphertext; never private keys or plaintext SOS data.
 - Each message uses a fresh cryptographic nonce and a secure UUID.
+- Hospital receipt verifies the detached Ed25519 signature before attempting sealed-box decryption. Corrupt, forged, and wrong-key envelopes fail closed.
 
 ## Hospital provisioning
 

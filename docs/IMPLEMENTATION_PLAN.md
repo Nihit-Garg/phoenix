@@ -10,7 +10,7 @@
 
 1. Transport interface.
 2. Secure device identity and hospital provisioning.
-3. Encrypted envelope helpers and tests.
+3. Encrypted envelope helpers and tests (helpers are in place; Android native round-trip tests remain).
 4. Wi-Fi Direct discovery.
 5. UDP peer transport.
 6. Dedupe, routing, relay, and queue integration.

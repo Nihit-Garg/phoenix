@@ -5,7 +5,7 @@ Mirage is an Android-only, offline emergency communication system with two Expo 
 - `frontend/`: Mirage Civilian, for SOS and peer messaging.
 - `hospital/`: Mirage Hospital, for receiving and managing SOS alerts.
 
-There is no backend, browser target, Socket.IO, or WebRTC runtime. Nearby phones will use Wi-Fi Direct and UDP in the transport phase.
+There is no cloud/server backend, browser target, Socket.IO, or WebRTC runtime. The repository `backend/` directory is the offline shared domain layer; nearby phones will use Wi-Fi Direct and UDP in the transport phase.
 
 ## Current status
 

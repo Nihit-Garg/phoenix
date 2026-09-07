@@ -19,9 +19,9 @@
 | Phase 0 — architecture and security decisions | Done | `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/PROTOCOL.md` |
 | Phase 1 — Android native foundation | Done | Separate `frontend/` and `hospital/` apps, package IDs, permissions, development-client configuration |
 | Phase 2 — transport abstraction | Done | `shared/transport.ts`, dashboard lifecycle/status integration, deterministic in-memory test transport |
-| Phase 3 — identity and encryption | In progress | SecureStore-backed X25519/Ed25519 identity helpers, hospital public manifest, and versioned envelope schema added; native build and envelope round-trip tests still required |
+| Phase 3 — identity and encryption | In progress | SecureStore-backed X25519/Ed25519 identity helpers, Civilian sealing/signing, Hospital verify-before-decrypt helper, and versioned envelope schema added; native build and envelope round-trip tests still required |
 | Phase 4 — Wi-Fi Direct and UDP | Planned | No implementation yet |
-| Phase 5 — routing, SOS, hospital dashboard | Planned | No implementation yet |
+| Phase 5 — routing, SOS, hospital dashboard | In progress | Envelope dedupe/relay rules and Civilian live-GPS SOS safety form added; Android peer transport and hospital decryption are pending device integration |
 
 ## 2026-09-07
 

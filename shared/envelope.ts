@@ -8,6 +8,9 @@ export interface EncryptedEnvelope {
   ciphertext: string;
   signature: string;
   createdAt: number;
+  hops?: number;
+  maxHops?: number;
+  path?: string[];
 }
 
 /** Produces the exact UTF-8 text that must be signed before transmission. */

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { TransportStatus, UnavailableTransport } from '../../shared/transport';
+import { TransportStatus, UnavailableTransport } from '../../backend/src/transport';
 import { HospitalIdentity, getOrCreateHospitalIdentity, publicManifest } from './security/identity';
 
 /** Phase 1 shell for the Android-only hospital administrative app. */
