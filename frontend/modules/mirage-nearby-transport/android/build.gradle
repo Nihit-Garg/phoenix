@@ -16,5 +16,7 @@ android {
 }
 
 dependencies {
-  implementation 'com.google.android.gms:play-services-nearby:19.5.0'
+  // 19.5.0 publishes Kotlin 2.4 metadata, which Expo SDK 57's Kotlin 2.1
+  // compiler cannot consume. 19.3.0 contains the Connections APIs used here.
+  implementation 'com.google.android.gms:play-services-nearby:19.3.0'
 }

@@ -4,7 +4,7 @@ Mirage needs custom Android development builds. Expo Go and Expo Web cannot load
 
 ## Nearby Connections validation
 
-Both apps contain an Expo-autolinked Android module backed by Google Play services Nearby Connections `19.5.0`. Rebuild each development build after native changes. On first launch, grant Nearby devices, Bluetooth, and Location permissions. Each app advertises, discovers, and connects automatically using `P2P_CLUSTER`; no group creation or peer-selection screen is required.
+Both apps contain an Expo-autolinked Android module backed by Google Play services Nearby Connections `19.3.0`. Version `19.3.0` is pinned because the newer `19.5.0` artifact publishes Kotlin 2.4 metadata that Expo SDK 57's Kotlin 2.1 compiler cannot consume. Rebuild each development build after native changes. On first launch, grant Nearby devices, Bluetooth, and Location permissions. Each app advertises, discovers, and connects automatically using `P2P_CLUSTER`; no group creation or peer-selection screen is required.
 
 Nearby Connections does not need internet during the SOS demonstration, but every participating phone must have compatible Google Play services already installed. The old Wi-Fi Direct/UDP module remains available in source as a fallback and is not selected by the current dashboards.
 

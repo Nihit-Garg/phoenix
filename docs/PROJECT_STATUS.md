@@ -130,7 +130,7 @@ Locked product decisions:
 
 ### Nearby Connections transport source
 
-- Both apps contain an Expo-autolinked Kotlin module using Google Play services Nearby Connections `19.5.0`.
+- Both apps contain an Expo-autolinked Kotlin module using Google Play services Nearby Connections `19.3.0`, pinned for Expo SDK 57's Kotlin 2.1 compatibility.
 - Both modules use the same service ID and `P2P_CLUSTER` strategy.
 - Advertising, discovery, deterministic connection initiation, automatic acceptance, disconnect, byte-payload receive/send, correlated send results, and cleanup are implemented.
 - Both TypeScript adapters request the Android-version-specific Nearby, Bluetooth, and Location permissions.
