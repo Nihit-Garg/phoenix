@@ -4,6 +4,7 @@
 
 - Phase 0: Android-only, two-app, offline-only architecture; map, GPS, and security policies.
 - Phase 1: Civilian and Hospital Android app shells, unique package IDs, Wi-Fi/location permission declarations, Expo development-client configuration, and legacy server/WebRTC removal.
+- Phase 2: Shared transport contract, explicit unavailable native adapter in both app dashboards, and a deterministic in-memory transport for protocol/routing tests.
 
 ## Next
 

@@ -3,12 +3,21 @@
     "name": "Mirage Hospital",
     "slug": "mirage-hospital",
     "version": "1.0.0",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "plugins": ["expo-secure-store", "react-native-libsodium"],
     "android": {
       "package": "com.mirage.hospital",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "NEARBY_WIFI_DEVICES", "ACCESS_WIFI_STATE", "CHANGE_WIFI_STATE"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NEARBY_WIFI_DEVICES",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE"
+      ]
     }
   }
 }
