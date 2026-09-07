@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.mirage.nearbytransport'
+version = '0.1.0'
+
+android {
+  namespace "com.mirage.nearbytransport"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions { abortOnError false }
+}
+
+dependencies {
+  // 19.5.0 publishes Kotlin 2.4 metadata, which Expo SDK 57's Kotlin 2.1
+  // compiler cannot consume. 19.3.0 contains the Connections APIs used here.
+  implementation 'com.google.android.gms:play-services-nearby:19.3.0'
+}

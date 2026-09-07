@@ -1,15 +1,28 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Mirage Civilian",
+    "slug": "mirage-civilian",
     "version": "1.0.0",
+    "platforms": [
+      "android"
+    ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
+      "package": "com.mirage.civilian",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NEARBY_WIFI_DEVICES",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE",
+        "ACCESS_NETWORK_STATE",
+        "CHANGE_NETWORK_STATE",
+        "BLUETOOTH_ADVERTISE",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -18,8 +31,9 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      "expo-secure-store",
+      "react-native-libsodium"
+    ]
   }
 }

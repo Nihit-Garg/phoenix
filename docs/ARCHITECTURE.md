@@ -1,41 +1,36 @@
-# MIRAGE — Current Architecture
+# Architecture
 
-```mermaid
-flowchart LR
-  UI[Expo / React Native UI] --> Store[Zustand stores]
-  Store --> Engine[MeshEngine]
-  Engine --> RTC[RTCManager / WebRTC]
-  Engine --> Queue[AsyncStorage SCF queue]
-  RTC <-- SDP and ICE --> Signal[Express + Socket.IO]
-  RTC <-- packets --> Peer[Nearby Mirage peer]
+## Locked decisions
+
+- Android-only MVP.
+- Separate Civilian and Hospital/Admin apps.
+- Offline-only delivery with no cloud or server dependency.
+- Google Nearby Connections discovers and links nearby phones without internet.
+- `P2P_CLUSTER` permits multiple direct nearby links; Mirage's mesh engine relays packets between those links.
+- Wi-Fi Direct/UDP remains as an inactive fallback adapter.
+- Every SOS requires live latitude and longitude.
+
+## Target flow
+
+```text
+Civilian UI -> GPS -> encrypted envelope -> routing/dedupe -> Nearby byte payload -> connected peers -> Hospital decrypts -> Dashboard
 ```
 
-## Connection lifecycle
+Relays route opaque envelopes. Only the hospital device holds the hospital private key needed to read SOS content.
 
-1. `useMeshEngine` restores the local identity and initializes engine handlers.
-2. The Socket.IO client connects to `EXPO_PUBLIC_SIGNALING_URL`.
-3. Its `onConnect` handler joins the server. This runs on initial connect and
-   every Socket.IO reconnection.
-4. The server returns a peer list and broadcasts the new peer to existing
-   members. Existing members initiate the WebRTC offer.
-5. An opened DataChannel causes both peers to exchange a one-way HELLO snapshot,
-   add direct routes, start heartbeats, and advertise route changes.
+## Map policy
 
-## Packet behavior
+Coordinates are authoritative worldwide. Mirage supports offline MapLibre packs
+for any selected region; packs must be downloaded or provisioned before an
+outage because the app never relies on internet access during an emergency.
+Address text is optional metadata and never replaces GPS coordinates. When no
+pack covers a coordinate, the Hospital workflow still shows precise latitude,
+longitude, and accuracy rather than inventing an address.
 
-- Originated and received packets enter the duplicate cache once.
-- A direct destination is sent unchanged; an intermediate router creates a
-  forwarded copy that decrements TTL and appends its node ID to `hopTrace`.
-- Emergency packets are broadcast to every open direct DataChannel except the
-  connection that delivered the current copy.
-- Unroutable DATA packets enter the priority SCF queue. The queue is stored in
-  AsyncStorage and restores on app start. Entries expire by priority.
-- Heartbeats run every three seconds. Three missed acknowledgements remove the
-  direct peer and routes using that next hop.
+## Project layout
 
-## Current platform support
-
-The repository has one Expo / React Native frontend, not a Next.js frontend.
-WebRTC works in supported desktop browsers through Expo Web. A native Android or
-iOS build needs a native WebRTC module and custom development build before the
-same engine can run on a phone.
+- `frontend/` is the Civilian Android app.
+- `hospital/` is the Hospital Android app.
+- `backend/` is the offline shared domain layer: protocol, mesh routing, SOS validation, and transport contracts. It is not a server.
+- `frontend/modules/` and `hospital/modules/` contain each app's Expo-autolinked Android native transport module.
+- See `docs/CODEBASE.md` for the ownership map.
