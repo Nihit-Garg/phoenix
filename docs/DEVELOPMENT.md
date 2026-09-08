@@ -10,6 +10,10 @@ Nearby Connections does not need internet during the SOS demonstration, but ever
 
 Prerequisites are Node.js 22.13+, Android Studio/SDK, and a USB-debugging-enabled Android phone. Run `npm run android` in `frontend/` or `hospital/`; after installation, run `npm start` for JavaScript updates. Rebuild when native dependencies or `app.json` change.
 
+## Friends and messaging
+
+Messages uses the installed native dependencies. Matching development clients can load updated JavaScript; rebuild standalone Civilian APKs. Run `node --test scripts/messaging.test.mjs scripts/demo-blockers.test.mjs` from the root and `npm run typecheck` from each app. Follow [MESSAGING.md](MESSAGING.md) for friend setup, two-phone chat, queued reconnect and relay acceptance. Hospital provisioning is unnecessary for chat and remains mandatory for SOS.
+
 ## Hospital provisioning
 
 1. Install and open a Hospital Android development build on the Hospital device.

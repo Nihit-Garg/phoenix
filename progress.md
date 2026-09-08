@@ -1,5 +1,9 @@
 # Mirage progress
 
+## 2026-09-08 Civilian messaging
+
+Home and Messages now share the existing running mesh. Mutual friend requests (nearby or signed public card), encrypted text conversations, unread badges, verified delivery receipts, encrypted local history/outbox, reconnect/restart retry and clear-conversation are implemented. Twelve messaging tests cover application reliability plus real libsodium operations; phone acceptance is pending. No native transport, discovery or shared routing changes were made. See `docs/MESSAGING.md` and the latest section of `docs/PROJECT_STATUS.md`; older phase notes below are historical.
+
 ## Product decisions
 
 | Decision | Status |

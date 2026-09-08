@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { PeerEndpoint, TransportStatus } from '../../../../backend/src/transport/PeerTransport';
 import { NearbyConnectionsTransport } from '../../core/transport/NearbyConnectionsTransport';
@@ -12,6 +13,10 @@ import { PeerInfoExchange } from '../../core/transport/PeerInfoExchange';
 import { validateSosPayload } from '../../../../backend/src/domain/sos';
 import { SosDeliveryEntry } from '../../core/storage/SosDeliveryQueue';
 import { SosDeliveryService } from '../../core/transport/SosDeliveryService';
+import { ChatService } from '../messages/ChatService';
+import { chatDependencies } from '../messages/crypto';
+import { ChatState } from '../messages/model';
+import { MessagesScreen } from '../messages/MessagesScreen';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -42,6 +47,10 @@ export function CivilianDashboard() {
   const [currentSosId, setCurrentSosId] = useState<string | null>(null);
   const [group, setGroup] = useState<{ groupFormed: boolean; isGroupOwner: boolean; groupOwnerAddress?: string }>({ groupFormed: false, isGroupOwner: false });
   const [routingTrace, setRoutingTrace] = useState<string[]>([]);
+  const [page, setPage] = useState<'sos' | 'messages'>('sos');
+  const [chat, setChat] = useState<ChatService | null>(null);
+  const [chatState, setChatState] = useState<ChatState | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
@@ -71,10 +80,13 @@ export function CivilianDashboard() {
     const peerInfo = new PeerInfoExchange(transport, identity);
     const mesh = new MeshEngine(identity.encryptionPublicKey, null, transport);
     const delivery = new SosDeliveryService(mesh, identity);
+    const messaging = new ChatService(mesh, chatDependencies(identity));
+    setChat(messaging);
     meshRef.current = mesh;
     deliveryRef.current = delivery;
     const stopPeerInfo = peerInfo.start();
     mesh.start();
+    const stopMessaging = messaging.start(setChatState, setChatError);
     const stopDelivery = delivery.start(setDeliveryEntries);
     const stopTrace = mesh.subscribe((event) => {
       if (!event.packet || (event.packet.kind !== 'sos' && event.packet.kind !== 'ack')) return;
@@ -85,6 +97,7 @@ export function CivilianDashboard() {
     const stopAnnouncements = transport.subscribe((event) => {
       if (event.type === 'peer' && event.peer.status === 'connected') {
         void delivery.flush();
+        void messaging.flush().catch((error: unknown) => setChatError(error instanceof Error ? error.message : 'Unable to open saved messages.'));
         void peerInfo.announce(event.peer.peerId).catch((error: unknown) => {
           setIdentityError(error instanceof Error ? error.message : 'Unable to announce this device to a nearby peer.');
         });
@@ -93,7 +106,7 @@ export function CivilianDashboard() {
     transport.getPeers().filter((peer) => peer.status === 'connected').forEach((peer) => {
       void peerInfo.announce(peer.peerId).catch(() => undefined);
     });
-    return () => { stopAnnouncements(); stopTrace(); stopDelivery(); stopPeerInfo(); mesh.stop(); if (deliveryRef.current === delivery) deliveryRef.current = null; if (meshRef.current === mesh) meshRef.current = null; };
+    return () => { stopMessaging(); stopAnnouncements(); stopTrace(); stopDelivery(); stopPeerInfo(); mesh.stop(); if (deliveryRef.current === delivery) deliveryRef.current = null; if (meshRef.current === mesh) meshRef.current = null; };
   }, [identity, transport]);
 
   const nativeTransportReady = transportStatus === 'ready';
@@ -118,7 +131,7 @@ export function CivilianDashboard() {
       const freshLocation = { latitude: fix.coords.latitude, longitude: fix.coords.longitude, accuracyMeters: fix.coords.accuracy ?? Number.POSITIVE_INFINITY, capturedAt: fix.timestamp };
       if (!isAcceptableLiveSosLocation(freshLocation)) throw new Error(`The available location is older than ${MAX_SOS_LOCATION_AGE_MS / 60_000} minutes or less accurate than ${MAX_SOS_ACCURACY_METERS} m.`);
       setLocation(freshLocation);
-      const payload = { type: 'sos' as const, civilianName: 'Mirage user', injuryDescription: 'Emergency assistance requested through Mirage.', location: freshLocation };
+      const payload = { type: 'sos' as const, civilianName: chatState?.name || 'Mirage user', injuryDescription: 'Emergency assistance requested through Mirage.', location: freshLocation };
       validateSosPayload(payload);
       const delivery = deliveryRef.current;
       if (!delivery) throw new Error('Nearby delivery service is still starting. Try again in a moment.');
@@ -148,10 +161,10 @@ export function CivilianDashboard() {
     : nativeTransportReady ? 'Finding and connecting to nearby Mirage phones…' : transportStatus === 'unavailable' ? 'Nearby network needs attention' : 'Starting nearby emergency network…';
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView style={page === 'messages' ? styles.hiddenPage : styles.visiblePage} contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <Text style={styles.welcome}>Welcome back,</Text>
-          <Text style={styles.userName}>Mirage user</Text>
+          <Text style={styles.userName}>{chatState?.name || 'Mirage user'}</Text>
         </View>
 
         <Text style={styles.title}>Are you in an emergency?</Text>
@@ -188,11 +201,24 @@ export function CivilianDashboard() {
         <Text style={currentDelivery?.state === 'delivered' ? styles.success : styles.deliveryStatus}>{deliveryMessage ?? (HOSPITAL_PUBLIC_MANIFEST ? 'Ready. Nearby connection and relay setup happen automatically.' : 'Waiting for a provisioned Civilian build.')}</Text>
         {routingTrace[0] ? <Text style={styles.traceText}>{routingTrace[0]}</Text> : null}
       </ScrollView>
+      <View style={page === 'messages' ? styles.visiblePage : styles.hiddenPage}>
+        <MessagesScreen service={chat} state={chatState} identity={identity} peers={peers} error={chatError} active={page === 'messages'} onHome={() => setPage('sos')} />
+      </View>
+      <View style={styles.navigation}>
+        <Pressable accessibilityRole="tab" accessibilityState={{ selected: page === 'sos' }} onPress={() => setPage('sos')} style={[styles.tab, page === 'sos' && styles.activeTab]}><Text style={styles.tabText}>Home · SOS</Text></Pressable>
+        <Pressable accessibilityRole="tab" accessibilityState={{ selected: page === 'messages' }} onPress={() => setPage('messages')} style={[styles.tab, page === 'messages' && styles.activeTab]}><Text style={styles.tabText}>Messages{chatState && (chatState.messages.some((m) => !m.read) || chatState.friends.some((f) => f.status === 'incoming')) ? ' •' : ''}</Text></Pressable>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  hiddenPage: { display: 'none' },
+  visiblePage: { flex: 1 },
+  navigation: { flexDirection: 'row', gap: 10, padding: 12, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#EFDFE3' },
+  tab: { flex: 1, alignItems: 'center', padding: 13, borderRadius: 12 },
+  activeTab: { backgroundColor: '#F5E5E9' },
+  tabText: { color: '#922B41', fontWeight: '700', fontSize: 14 },
   safeArea: { flex: 1, backgroundColor: '#F8E8E9' },
   container: { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 28, alignItems: 'center' },
   header: { alignSelf: 'stretch', marginBottom: 28 },

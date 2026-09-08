@@ -7,7 +7,7 @@ import { CivilianDashboard } from './src/features/emergency/CivilianDashboard';
 export default function App() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <CivilianDashboard />
     </SafeAreaProvider>
   );

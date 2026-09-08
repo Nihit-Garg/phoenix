@@ -9,9 +9,11 @@ There is no cloud/server backend, browser target, Socket.IO, or WebRTC runtime. 
 
 ## Current status
 
-The foundation, encrypted SOS/ACK runtime, bounded GPS capture, ciphertext retry queue, one-hop mesh routing, and automatic Nearby Connections adapters are implemented. The Nearby native module is statically verified and still requires a rebuilt APK plus a physical 3–4 phone test. Durable Hospital alert storage and worldwide region-selectable offline map packs remain future work.
+The foundation, encrypted SOS/ACK runtime, bounded GPS capture, ciphertext retry queue, one-hop mesh routing, and automatic Nearby Connections adapters are implemented. User phone screenshots show automatic links, live GPS and SOS mesh arrival at hop 1. Verified Hospital processing and the return acknowledgement still require complete acceptance testing. Durable Hospital alert storage and worldwide region-selectable offline map packs remain future work.
 
 ## Run an app on Android
+
+The Civilian **Messages** page now supports mutual friend requests, encrypted offline conversations, saved history/outbox, unread indicators and delivery receipts over the existing mesh. See [messaging setup and testing](docs/MESSAGING.md). No new native dependency is required; physical chat acceptance is pending.
 
 Install Android Studio, enable USB debugging, then run one app:
 

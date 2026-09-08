@@ -1,5 +1,7 @@
 # Demo recovery — 2026-09-08
 
+This recovery guide concerns Nearby permissions and SOS provisioning. The new Messages page needs no Hospital manifest; it uses mutual friend requests over the same running mesh. See [MESSAGING.md](MESSAGING.md) for setup and tests.
+
 The previous APK exposed two independent bugs: Nearby 19.3.0 requires fine location on Android 13+, but the adapter omitted that request; Hospital exports URL-safe Base64 without padding, but the provisioning script rejected that alphabet.
 
 ## Fixes included

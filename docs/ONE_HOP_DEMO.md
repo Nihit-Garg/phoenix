@@ -1,5 +1,7 @@
 # Three-phone one-hop SOS demo
 
+Civilian messaging now runs alongside SOS on the same mesh. Use Home for this demo; switching to Messages does not stop relaying. See [MESSAGING.md](MESSAGING.md) for a separate bidirectional chat acceptance test. Its friend receipts do not replace Hospital SOS acknowledgements.
+
 This is the minimum supported demonstration target:
 
 ```text

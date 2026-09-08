@@ -20,6 +20,12 @@ Civilian build during provisioning; private hospital keys never leave SecureStor
 
 After a Nearby connection forms, peers exchange a versioned `PEER_INFO` record with peer ID, role, display name, and public keys. The current version retains legacy endpoint fields for wire compatibility, but routing uses the observed Nearby endpoint ID rather than an IP socket. The record is Ed25519-signed by the advertised signing public key before it is cached. It contains no private key or SOS plaintext.
 
+## Friend and chat payloads
+
+Chat uses existing `kind: p2p`, `priority: normal`, and the friend's encryption public key for `to` and `recipientKeyId`. Sealed payloads contain `version: 1`, stable `id`, `sentAt` and a type: `friend-request` (name), `friend-accept` (name, requestId), `friend-decline` (requestId), `message` (text), or `receipt` (messageId). Receipts are `p2p` and do not enter SOS ACK handling. Verify signature before decryption; check both pinned friend keys before accepting text/receipts.
+
+Retries use fresh envelope IDs with the same encrypted payload ID. Relays use existing dedupe unchanged; chat recipients deduplicate by sender/payload ID and re-receipt duplicates. Correlation uses IDs/keys rather than clock comparison. Sender history/outbox persist encrypted; relays remain foreground forwarding only. See [MESSAGING.md](MESSAGING.md) for limits and acceptance steps.
+
 ## SOS acknowledgement and retry
 
 A Hospital that successfully verifies, decrypts, and validates an SOS creates an encrypted `ack` packet. Its plaintext payload contains the original SOS envelope ID, Hospital key ID, and Hospital receipt time. The ACK is sealed to the Civilian X25519 public key and signed by the Hospital Ed25519 key.

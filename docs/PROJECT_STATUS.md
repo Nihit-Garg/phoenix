@@ -5,6 +5,33 @@ Branch: `anshul-dev`
 
 This is the detailed source of truth for Mirage: the intended behavior, completed work, partial work, known blockers, remaining phases, and the conditions required before the product can be considered ready.
 
+## 2026-09-08 Civilian messaging integration
+
+- Added Home/Messages navigation while keeping one transport and mesh alive.
+- Added saved profile name, nearby/card friend requests, mutual acceptance/decline, private conversations, unread indicators and recipient delivery receipts.
+- Added a serialized chat service with encrypted history/outbox, restart/reconnect retries, stable message dedupe, storage-before-receipt ordering and expiry/retry UI.
+- Uses existing `p2p` envelopes and installed crypto/storage libraries. Native modules, discovery, peer exchange, shared routing and SOS ACK logic were not modified.
+- Twelve new automated tests pass for consent, one-hop bidirectional delivery, dropped receipts, restart/reconnect, concurrency, storage failure, expiry, input validation, actual libsodium crypto and encrypted persistence.
+- Both apps pass TypeScript validation, the Civilian Android production bundle exports, and the existing permission/provisioning regressions pass.
+- Physical chat/keyboard tests remain pending. Background relaying, notifications, attachments, groups and friend removal/unblocking are not implemented.
+- User screenshots establish automatic nearby links, GPS capture and mesh arrival at hop 1; they do not yet establish verified Hospital decryption and return ACK. Earlier entries below saying no physical connection/relay had been observed are historical and superseded by that evidence.
+
+See [MESSAGING.md](MESSAGING.md) for the full behavior, storage limits, security assumptions and phone test plan.
+
+## 2026-09-08 Hospital dashboard integration
+
+The Hospital presentation layer has been reorganized without changing Nearby Connections, peer exchange, or mesh routing:
+
+- Verified SOS alerts now appear at the top of the dashboard immediately after validation and decryption.
+- The newest alert is emphasized and uses only received payload and envelope data for name, emergency, coordinates, GPS accuracy, timestamps, identifier, and hop count.
+- A compact delivery-path graph renders the actual packet hop count as sender, relay, and Hospital nodes.
+- Live summary cards derive active-alert, connected-device, and latest-route values from runtime state; no mock dashboard metrics are used.
+- Routing logs remain available and now include timestamps, SOS/ACK type, disposition, hop count, and the actual drop or failure reason.
+- Nearby status, connected devices, permission recovery, Hospital key status, and manifest export remain available below the emergency workflow.
+- Dashboard limits and the native endpoint display name are centralized in configuration instead of being scattered through the component.
+
+Hospital TypeScript validation and Expo Android production bundle generation pass after this UI integration.
+
 ## 2026-09-08 demo blocker fixes
 
 The user's phone screenshots confirm that the Nearby APK launches, but discovery failed with 8036 (missing fine-location permission), and the Civilian APK was unprovisioned. Both confirmed source bugs are now corrected:
@@ -281,7 +308,7 @@ Completion criterion: Hospital staff can receive, acknowledge, act on, resolve, 
 
 - Add nearby/trusted peer screens.
 - Add SOS history and confirmed delivery details.
-- Add peer messaging if it remains in MVP scope.
+- Physically validate the implemented Friends/Messages feature; follow-on work includes notifications, friend management and richer messaging if required.
 - Add identity, permissions, provisioning, settings, and diagnostics screens.
 - Display GPS age and accuracy and define maximum acceptable fix age.
 - Add accessible errors, vibration, and protection against accidental repeat submission.

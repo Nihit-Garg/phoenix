@@ -3,8 +3,8 @@
 This folder contains the offline backend/domain boundary shared by the Android
 clients: transport contracts, routing rules, envelope schema, and SOS safety
 rules. It intentionally contains no HTTP server, database, cloud integration,
-or Socket.IO runtime. Android native Wi-Fi Direct and UDP adapters will sit
-behind the transport contract.
+or Socket.IO runtime. Android Nearby Connections sits behind the transport
+contract; the earlier Wi-Fi Direct/UDP adapter remains inactive.
 
 ## Ownership
 
@@ -15,3 +15,8 @@ behind the transport contract.
 
 The two apps import this folder directly. There is no duplicate shared domain
 implementation elsewhere in the repository.
+
+Civilian friend requests and chats use the existing `p2p` envelopes and mesh
+without modifying this domain layer. Application consent, receipts, encrypted
+storage and retry semantics live in `frontend/src/features/messages/` and are
+documented in `docs/MESSAGING.md`.

@@ -5,6 +5,8 @@ Mirage has two Android Expo apps and one shared offline domain layer.
 ## Apps
 
 - `frontend/src/features/` contains Civilian UI features.
+- `frontend/src/features/messages/` contains the Friends/conversation screen, protocol model, serialized ChatService and crypto/storage adapter. The Civilian dashboard owns its lifecycle alongside SOS using one mesh.
+- `scripts/messaging.test.mjs` covers consent, delivery/retry, real mesh integration, libsodium and encrypted persistence. `docs/MESSAGING.md` describes phone acceptance.
 - `frontend/src/core/security/` contains Civilian identity, provisioning, and envelope helpers.
 - `frontend/src/core/transport/` adapts the native Android module to the shared transport port.
 - `hospital/src/features/` contains Hospital UI features.

@@ -19,6 +19,12 @@ The first demo automatically accepts Nearby Connections links so a bystander rel
 
 Automatic acceptance still permits an untrusted nearby device to consume connection slots or send invalid traffic. Production hardening must add rate and size limits, connection quotas, and an abuse-resistant device-verification policy before Mirage is treated as field-ready.
 
+## Private conversations
+
+Chat uses signed `p2p` envelopes with sealed-box encryption. Both friend keys are pinned; text requires mutual consent and receipts must match the contact and original message ID. Friend cards contain signed public data. Users should compare the SHA-256-derived 96-bit safety code in person or over a trusted channel: nearby names and self-signatures alone do not establish a person's identity.
+
+Profile name, friends, chat history, outbox and received IDs are encrypted to the local identity before AsyncStorage persistence. Receipts follow successful saving. A bounded duplicate-ID window survives conversation clearing; delivered status means device storage, not human reading. Key loss makes saved history inaccessible. Limits exist for messages, requests and storage; sustained-traffic rate limiting and production abuse controls remain future work. See [MESSAGING.md](MESSAGING.md).
+
 ## SOS location rule
 
 An SOS must include `latitude`, `longitude`, `accuracyMeters`, and `capturedAt`. Mirage first requests a fresh high-accuracy fix. If that request times out, it may use a device location no older than five minutes and accurate to 250 metres so an indoor emergency is not silently blocked. Manual and reverse-geocoded addresses are never substituted for coordinates.
